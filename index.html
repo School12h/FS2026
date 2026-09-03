@@ -1,1253 +1,558 @@
-```html
 <!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Advanced Hockey</title>
-
-<style>
-* {
-    box-sizing: border-box;
-    user-select: none;
-}
-
-body {
-    margin: 0;
-    overflow: hidden;
-    background: #06101d;
-    font-family: Arial, Helvetica, sans-serif;
-    color: white;
-}
-
-canvas {
-    display: block;
-    width: 100vw;
-    height: 100vh;
-    cursor: crosshair;
-}
-
-#hud {
-    position: fixed;
-    top: 15px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(900px, 94vw);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    pointer-events: none;
-    z-index: 5;
-}
-
-.scoreBox {
-    min-width: 170px;
-    padding: 10px 22px;
-    text-align: center;
-    border-radius: 14px;
-    background: rgba(5, 15, 28, .85);
-    border: 2px solid rgba(255,255,255,.15);
-    box-shadow: 0 5px 25px rgba(0,0,0,.35);
-}
-
-.team {
-    font-size: 13px;
-    font-weight: bold;
-    opacity: .75;
-}
-
-.score {
-    font-size: 38px;
-    font-weight: 900;
-}
-
-#timer {
-    font-size: 30px;
-    font-weight: 900;
-    background: rgba(5,15,28,.85);
-    padding: 10px 20px;
-    border-radius: 14px;
-}
-
-#help {
-    position: fixed;
-    left: 20px;
-    bottom: 20px;
-    padding: 13px 17px;
-    background: rgba(5,15,28,.82);
-    border: 1px solid rgba(255,255,255,.15);
-    border-radius: 12px;
-    font-size: 13px;
-    line-height: 1.6;
-    z-index: 5;
-}
-
-#stats {
-    position: fixed;
-    right: 20px;
-    bottom: 20px;
-    padding: 13px 17px;
-    background: rgba(5,15,28,.82);
-    border: 1px solid rgba(255,255,255,.15);
-    border-radius: 12px;
-    font-size: 13px;
-    line-height: 1.6;
-    z-index: 5;
-}
-
-#message {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(.8);
-    font-size: clamp(35px, 7vw, 90px);
-    font-weight: 1000;
-    text-shadow: 0 5px 25px black;
-    opacity: 0;
-    pointer-events: none;
-    transition: .25s;
-    z-index: 10;
-}
-
-#message.show {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-}
-
-button {
-    position: fixed;
-    top: 105px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 9px 18px;
-    border: 0;
-    border-radius: 10px;
-    background: #fff;
-    color: #111;
-    font-weight: bold;
-    cursor: pointer;
-    z-index: 8;
-}
-
-button:hover {
-    background: #dff5ff;
-}
-</style>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Ice hockey 3D version</title>
+  <meta name="title" content="Ice hockey SVG Test" />
+  <script src="./js/controller.js"></script>
 </head>
 
-<body>
-
-<canvas id="game"></canvas>
-
-<div id="hud">
-    <div class="scoreBox">
-        <div class="team">BLUE</div>
-        <div class="score" id="blueScore">0</div>
-    </div>
-
-    <div id="timer">03:00</div>
-
-    <div class="scoreBox">
-        <div class="team">RED</div>
-        <div class="score" id="redScore">0</div>
-    </div>
-</div>
-
-<button id="pause">PAUSE</button>
-
-<div id="help">
-    <b>CONTROLS</b><br>
-    WASD / Arrow Keys — Move<br>
-    Mouse — Aim<br>
-    Left Click — Shoot<br>
-    Space — Power Shot<br>
-    Shift — Sprint<br>
-    P — Pause
-</div>
-
-<div id="stats">
-    Shots: <b id="shots">0</b><br>
-    Hits: <b id="hits">0</b><br>
-    Speed: <b id="speed">0</b>
-</div>
-
-<div id="message"></div>
-
-<script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-
-let W, H;
-let scale = 1;
-
-function resize() {
-    W = canvas.width = innerWidth * devicePixelRatio;
-    H = canvas.height = innerHeight * devicePixelRatio;
-    canvas.style.width = innerWidth + "px";
-    canvas.style.height = innerHeight + "px";
-    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-    W = innerWidth;
-    H = innerHeight;
-}
-
-addEventListener("resize", resize);
-resize();
-
-const keys = {};
-const mouse = {
-    x: innerWidth / 2,
-    y: innerHeight / 2,
-    down: false
-};
-
-addEventListener("keydown", e => {
-    keys[e.key.toLowerCase()] = true;
-
-    if (e.code === "Space") {
-        e.preventDefault();
-        powerShot();
+<body onload="load()"
+  style="background-color: #383838;margin-left: 0px;margin-right: 0px;margin-top: 0px; margin-bottom: 0px; margin: 0px;">
+  <style>
+    @font-face {
+      font-family: "InriaSans";
+      src: url("./fonts/InriaSans-Regular.ttf");
     }
-
-    if (e.key.toLowerCase() === "p") {
-        togglePause();
-    }
-});
-
-addEventListener("keyup", e => {
-    keys[e.key.toLowerCase()] = false;
-});
-
-canvas.addEventListener("mousemove", e => {
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
-});
-
-canvas.addEventListener("mousedown", () => {
-    mouse.down = true;
-    shoot(false);
-});
-
-canvas.addEventListener("mouseup", () => {
-    mouse.down = false;
-});
-
-document.getElementById("pause").onclick = togglePause;
-
-let paused = false;
-let gameOver = false;
-
-let blueScore = 0;
-let redScore = 0;
-
-let shots = 0;
-let hits = 0;
-
-let gameTime = 180;
-
-const rink = {
-    x: 90,
-    y: 125,
-    w: 0,
-    h: 0,
-    radius: 45
-};
-
-function updateRink() {
-    rink.w = W - 180;
-    rink.h = H - 230;
-
-    if (rink.w < 650) rink.w = W - 40;
-    if (rink.h < 350) rink.h = H - 160;
-
-    rink.x = (W - rink.w) / 2;
-    rink.y = 125;
-}
-
-updateRink();
-
-class Player {
-    constructor(x, y, team, color, ai = false) {
-        this.x = x;
-        this.y = y;
-
-        this.vx = 0;
-        this.vy = 0;
-
-        this.team = team;
-        this.color = color;
-        this.ai = ai;
-
-        this.radius = 22;
-        this.maxSpeed = 4.5;
-        this.acceleration = .42;
-        this.friction = .91;
-
-        this.cooldown = 0;
-        this.hitCooldown = 0;
-
-        this.energy = 100;
-    }
-
-    update() {
-        if (this.cooldown > 0) this.cooldown--;
-        if (this.hitCooldown > 0) this.hitCooldown--;
-
-        if (this.ai) {
-            this.updateAI();
-        } else {
-            this.updatePlayer();
-        }
-
-        this.x += this.vx;
-        this.y += this.vy;
-
-        this.vx *= this.friction;
-        this.vy *= this.friction;
-
-        this.energy += .2;
-        this.energy = Math.min(100, this.energy);
-
-        this.x = Math.max(rink.x + this.radius, Math.min(
-            rink.x + rink.w - this.radius,
-            this.x
-        ));
-
-        this.y = Math.max(rink.y + this.radius, Math.min(
-            rink.y + rink.h - this.radius,
-            this.y
-        ));
-    }
-
-    updatePlayer() {
-        let ax = 0;
-        let ay = 0;
-
-        if (keys["w"] || keys["arrowup"]) ay--;
-        if (keys["s"] || keys["arrowdown"]) ay++;
-        if (keys["a"] || keys["arrowleft"]) ax--;
-        if (keys["d"] || keys["arrowright"]) ax++;
-
-        const len = Math.hypot(ax, ay);
-
-        if (len) {
-            ax /= len;
-            ay /= len;
-
-            let speed = this.maxSpeed;
-
-            if (keys["shift"] && this.energy > 0) {
-                speed = 7;
-                this.energy -= .8;
-            }
-
-            this.vx += ax * this.acceleration * (speed / 4.5);
-            this.vy += ay * this.acceleration * (speed / 4.5);
-
-            const velocity = Math.hypot(this.vx, this.vy);
-
-            if (velocity > speed) {
-                this.vx = this.vx / velocity * speed;
-                this.vy = this.vy / velocity * speed;
-            }
-        }
-    }
-
-    updateAI() {
-        const dx = puck.x - this.x;
-        const dy = puck.y - this.y;
-        const dist = Math.hypot(dx, dy);
-
-        let targetX = puck.x;
-        let targetY = puck.y;
-
-        if (puck.x < rink.x + rink.w / 2) {
-            targetX = rink.x + rink.w * .55;
-        }
-
-        if (dist < 500) {
-            targetX = puck.x;
-            targetY = puck.y;
-        }
-
-        const angle = Math.atan2(targetY - this.y, targetX - this.x);
-
-        this.vx += Math.cos(angle) * .25;
-        this.vy += Math.sin(angle) * .25;
-
-        const speed = Math.hypot(this.vx, this.vy);
-
-        if (speed > 4) {
-            this.vx = this.vx / speed * 4;
-            this.vy = this.vy / speed * 4;
-        }
-
-        if (dist < 65 && this.cooldown <= 0) {
-            this.shootAI();
-        }
-    }
-
-    shootAI() {
-        const targetX = rink.x + 20;
-        const targetY = rink.y + rink.h / 2;
-
-        shootPuck(this, targetX, targetY, 8);
-        this.cooldown = 45;
-    }
-
-    draw() {
-        ctx.save();
-
-        ctx.translate(this.x, this.y);
-
-        const angle = Math.atan2(
-            puck.y - this.y,
-            puck.x - this.x
-        );
-
-        ctx.rotate(angle);
-
-        // shadow
-        ctx.beginPath();
-        ctx.ellipse(2, 7, 24, 11, 0, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(0,0,0,.18)";
-        ctx.fill();
-
-        // stick
-        ctx.beginPath();
-        ctx.moveTo(10, 5);
-        ctx.lineTo(42, 15);
-        ctx.lineWidth = 5;
-        ctx.strokeStyle = "#402b16";
-        ctx.stroke();
-
-        // player
-        ctx.beginPath();
-        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.fill();
-
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = "white";
-        ctx.stroke();
-
-        // helmet
-        ctx.beginPath();
-        ctx.arc(-5, -7, 11, Math.PI, Math.PI * 2);
-        ctx.fillStyle = "#111";
-        ctx.fill();
-
-        ctx.restore();
-    }
-}
-
-class Goalie {
-    constructor(x, y, team, color) {
-        this.x = x;
-        this.y = y;
-        this.team = team;
-        this.color = color;
-        this.radius = 27;
-        this.vy = 0;
-    }
-
-    update() {
-        const targetY = puck.y;
-
-        this.y += (targetY - this.y) * .08;
-
-        this.y = Math.max(
-            rink.y + 60,
-            Math.min(rink.y + rink.h - 60, this.y)
-        );
-
-        const goalX = this.team === "blue"
-            ? rink.x + 35
-            : rink.x + rink.w - 35;
-
-        this.x = goalX;
-    }
-
-    draw() {
-        ctx.save();
-
-        ctx.translate(this.x, this.y);
-
-        ctx.beginPath();
-        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.fill();
-
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = "white";
-        ctx.stroke();
-
-        // mask
-        ctx.beginPath();
-        ctx.arc(0, -5, 16, 0, Math.PI * 2);
-        ctx.fillStyle = "#ddd";
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.moveTo(-12, 2);
-        ctx.lineTo(12, 2);
-        ctx.strokeStyle = "#222";
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
-        ctx.restore();
-    }
-}
-
-const player = new Player(0, 0, "blue", "#176cff");
-const enemy = new Player(0, 0, "red", "#e73545", true);
-
-const blueGoalie = new Goalie(0, 0, "blue", "#176cff");
-const redGoalie = new Goalie(0, 0, "red", "#e73545");
-
-const puck = {
-    x: 0,
-    y: 0,
-    vx: 0,
-    vy: 0,
-    radius: 10,
-    spin: 0
-};
-
-function resetPositions() {
-    player.x = rink.x + rink.w * .30;
-    player.y = rink.y + rink.h / 2;
-
-    enemy.x = rink.x + rink.w * .70;
-    enemy.y = rink.y + rink.h / 2;
-
-    blueGoalie.x = rink.x + 35;
-    blueGoalie.y = rink.y + rink.h / 2;
-
-    redGoalie.x = rink.x + rink.w - 35;
-    redGoalie.y = rink.y + rink.h / 2;
-
-    puck.x = rink.x + rink.w / 2;
-    puck.y = rink.y + rink.h / 2;
-
-    puck.vx = 0;
-    puck.vy = 0;
-}
-
-resetPositions();
-
-function shoot(fromPlayer, targetX, targetY, power) {
-    if (fromPlayer.cooldown > 0) return;
-
-    const dx = targetX - fromPlayer.x;
-    const dy = targetY - fromPlayer.y;
-    const len = Math.hypot(dx, dy);
-
-    if (len < 1) return;
-
-    const dist = Math.hypot(
-        puck.x - fromPlayer.x,
-        puck.y - fromPlayer.y
-    );
-
-    if (dist > 70) return;
-
-    shootPuck(
-        fromPlayer,
-        targetX,
-        targetY,
-        power
-    );
-
-    fromPlayer.cooldown = 18;
-
-    if (!fromPlayer.ai) shots++;
-}
-
-function shootPuck(fromPlayer, targetX, targetY, power) {
-    const dx = targetX - fromPlayer.x;
-    const dy = targetY - fromPlayer.y;
-    const len = Math.hypot(dx, dy);
-
-    puck.x = fromPlayer.x + dx / len * 30;
-    puck.y = fromPlayer.y + dy / len * 30;
-
-    puck.vx = dx / len * power;
-    puck.vy = dy / len * power;
-
-    createParticles(puck.x, puck.y, 8);
-    beep(260, .04);
-}
-
-function shootMouse() {
-    shoot(player, mouse.x, mouse.y, 9);
-}
-
-function powerShot() {
-    if (player.energy < 35) return;
-
-    const dx = mouse.x - player.x;
-    const dy = mouse.y - player.y;
-    const len = Math.hypot(dx, dy);
-
-    if (len < 1) return;
-
-    const dist = Math.hypot(
-        puck.x - player.x,
-        puck.y - player.y
-    );
-
-    if (dist > 75) return;
-
-    player.energy -= 35;
-
-    shootPuck(
-        player,
-        mouse.x,
-        mouse.y,
-        15
-    );
-
-    player.cooldown = 30;
-
-    shots++;
-
-    createParticles(puck.x, puck.y, 25);
-    beep(80, .15);
-}
-
-function shoot(mousePower) {
-    if (mousePower) powerShot();
-    else shootMouse();
-}
-
-function collideWithPlayer(p) {
-    const dx = puck.x - p.x;
-    const dy = puck.y - p.y;
-
-    const dist = Math.hypot(dx, dy);
-    const minDist = p.radius + puck.radius;
-
-    if (dist < minDist) {
-        const nx = dx / (dist || 1);
-        const ny = dy / (dist || 1);
-
-        puck.x = p.x + nx * minDist;
-        puck.y = p.y + ny * minDist;
-
-        const speed = Math.max(
-            3,
-            Math.hypot(p.vx, p.vy) + 1
-        );
-
-        puck.vx = nx * speed + p.vx * .7;
-        puck.vy = ny * speed + p.vy * .7;
-
-        createParticles(puck.x, puck.y, 4);
-    }
-}
-
-function checkPlayerCollision() {
-    const dx = enemy.x - player.x;
-    const dy = enemy.y - player.y;
-    const dist = Math.hypot(dx, dy);
-
-    if (dist < 42 && player.hitCooldown <= 0) {
-        const nx = dx / (dist || 1);
-        const ny = dy / (dist || 1);
-
-        enemy.vx += nx * 3;
-        enemy.vy += ny * 3;
-
-        player.vx -= nx * .8;
-        player.vy -= ny * .8;
-
-        player.hitCooldown = 20;
-        hits++;
-
-        createParticles(
-            (player.x + enemy.x) / 2,
-            (player.y + enemy.y) / 2,
-            12
-        );
-
-        beep(120, .06);
-    }
-}
-
-function checkGoalie(g) {
-    const dx = puck.x - g.x;
-    const dy = puck.y - g.y;
-
-    const dist = Math.hypot(dx, dy);
-
-    if (dist < g.radius + puck.radius) {
-        const nx = dx / (dist || 1);
-        const ny = dy / (dist || 1);
-
-        puck.vx = nx * 8;
-        puck.vy = ny * 8;
-
-        puck.x = g.x + nx * (g.radius + puck.radius);
-        puck.y = g.y + ny * (g.radius + puck.radius);
-
-        createParticles(puck.x, puck.y, 16);
-        beep(90, .08);
-    }
-}
-
-function checkGoal() {
-    const goalDepth = 30;
-    const goalHeight = 150;
-
-    const goalTop = rink.y + rink.h / 2 - goalHeight / 2;
-    const goalBottom = goalTop + goalHeight;
-
-    // Blue goal
-    if (
-        puck.x < rink.x - goalDepth &&
-        puck.y > goalTop &&
-        puck.y < goalBottom
-    ) {
-        redScore++;
-        goal("RED SCORES!");
-    }
-
-    // Red goal
-    if (
-        puck.x > rink.x + rink.w + goalDepth &&
-        puck.y > goalTop &&
-        puck.y < goalBottom
-    ) {
-        blueScore++;
-        goal("BLUE SCORES!");
-    }
-}
-
-function goal(text) {
-    showMessage(text);
-
-    createParticles(
-        puck.x,
-        puck.y,
-        60
-    );
-
-    beep(440, .2);
-
-    resetPositions();
-}
-
-function showMessage(text) {
-    const el = document.getElementById("message");
-
-    el.textContent = text;
-    el.classList.add("show");
-
-    setTimeout(() => {
-        el.classList.remove("show");
-    }, 1200);
-}
-
-function updatePuck() {
-    puck.x += puck.vx;
-    puck.y += puck.vy;
-
-    puck.vx *= .985;
-    puck.vy *= .985;
-
-    puck.spin += Math.hypot(puck.vx, puck.vy) * .03;
-
-    const top = rink.y + puck.radius;
-    const bottom = rink.y + rink.h - puck.radius;
-
-    if (puck.y < top) {
-        puck.y = top;
-        puck.vy *= -.85;
-    }
-
-    if (puck.y > bottom) {
-        puck.y = bottom;
-        puck.vy *= -.85;
-    }
-
-    const goalTop = rink.y + rink.h / 2 - 75;
-    const goalBottom = goalTop + 150;
-
-    if (
-        puck.x < rink.x + puck.radius &&
-        !(puck.y > goalTop && puck.y < goalBottom)
-    ) {
-        puck.x = rink.x + puck.radius;
-        puck.vx *= -.85;
-    }
-
-    if (
-        puck.x > rink.x + rink.w - puck.radius &&
-        !(puck.y > goalTop && puck.y < goalBottom)
-    ) {
-        puck.x = rink.x + rink.w - puck.radius;
-        puck.vx *= -.85;
-    }
-}
-
-function drawRink() {
-    updateRink();
-
-    // ice
-    const gradient = ctx.createLinearGradient(
-        0,
-        rink.y,
-        0,
-        rink.y + rink.h
-    );
-
-    gradient.addColorStop(0, "#e8faff");
-    gradient.addColorStop(.5, "#d7f3fc");
-    gradient.addColorStop(1, "#c9edf8");
-
-    ctx.fillStyle = gradient;
-
-    roundRect(
-        rink.x,
-        rink.y,
-        rink.w,
-        rink.h,
-        rink.radius
-    );
-
-    ctx.fill();
-
-    ctx.save();
-
-    ctx.beginPath();
-
-    roundRect(
-        rink.x,
-        rink.y,
-        rink.w,
-        rink.h,
-        rink.radius
-    );
-
-    ctx.clip();
-
-    // ice lines
-    ctx.lineWidth = 4;
-
-    ctx.strokeStyle = "rgba(30,80,220,.7)";
-    ctx.beginPath();
-    ctx.moveTo(rink.x + rink.w * .25, rink.y);
-    ctx.lineTo(rink.x + rink.w * .25, rink.y + rink.h);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(rink.x + rink.w * .75, rink.y);
-    ctx.lineTo(rink.x + rink.w * .75, rink.y + rink.h);
-    ctx.stroke();
-
-    ctx.strokeStyle = "rgba(220,40,50,.8)";
-    ctx.lineWidth = 5;
-
-    ctx.beginPath();
-    ctx.moveTo(rink.x + rink.w / 2, rink.y);
-    ctx.lineTo(rink.x + rink.w / 2, rink.y + rink.h);
-    ctx.stroke();
-
-    // center circle
-    ctx.beginPath();
-    ctx.arc(
-        rink.x + rink.w / 2,
-        rink.y + rink.h / 2,
-        75,
-        0,
-        Math.PI * 2
-    );
-    ctx.strokeStyle = "rgba(220,40,50,.65)";
-    ctx.lineWidth = 4;
-    ctx.stroke();
-
-    // center dot
-    ctx.beginPath();
-    ctx.arc(
-        rink.x + rink.w / 2,
-        rink.y + rink.h / 2,
-        7,
-        0,
-        Math.PI * 2
-    );
-    ctx.fillStyle = "#d22";
-    ctx.fill();
-
-    // faceoff circles
-    const circles = [
-        [rink.x + rink.w * .25, rink.y + rink.h * .28],
-        [rink.x + rink.w * .25, rink.y + rink.h * .72],
-        [rink.x + rink.w * .75, rink.y + rink.h * .28],
-        [rink.x + rink.w * .75, rink.y + rink.h * .72]
-    ];
-
-    for (const [x, y] of circles) {
-        ctx.beginPath();
-        ctx.arc(x, y, 45, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(220,40,50,.55)";
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(x, y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = "#d22";
-        ctx.fill();
-    }
-
-    ctx.restore();
-
-    // boards
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = "#ffffff";
-
-    roundRect(
-        rink.x,
-        rink.y,
-        rink.w,
-        rink.h,
-        rink.radius
-    );
-
-    ctx.stroke();
-
-    // goals
-    drawGoal(
-        rink.x - 30,
-        rink.y + rink.h / 2,
-        "left"
-    );
-
-    drawGoal(
-        rink.x + rink.w + 30,
-        rink.y + rink.h / 2,
-        "right"
-    );
-}
-
-function drawGoal(x, y, side) {
-    ctx.save();
-
-    ctx.translate(x, y);
-
-    if (side === "right") {
-        ctx.scale(-1, 1);
-    }
-
-    ctx.strokeStyle = "#d33";
-    ctx.lineWidth = 6;
-
-    ctx.beginPath();
-    ctx.moveTo(0, -75);
-    ctx.lineTo(-25, -55);
-    ctx.lineTo(-25, 55);
-    ctx.lineTo(0, 75);
-    ctx.stroke();
-
-    ctx.strokeStyle = "rgba(180,180,180,.8)";
-    ctx.lineWidth = 2;
-
-    for (let i = -55; i <= 55; i += 15) {
-        ctx.beginPath();
-        ctx.moveTo(-2, i);
-        ctx.lineTo(-25, i * .7);
-        ctx.stroke();
-    }
-
-    ctx.restore();
-}
-
-function drawPuck() {
-    ctx.save();
-
-    ctx.translate(puck.x, puck.y);
-
-    ctx.rotate(puck.spin);
-
-    ctx.beginPath();
-    ctx.ellipse(
-        0,
-        5,
-        puck.radius + 2,
-        puck.radius * .55,
-        0,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fillStyle = "rgba(0,0,0,.2)";
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(
-        0,
-        0,
-        puck.radius,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fillStyle = "#111";
-    ctx.fill();
-
-    ctx.restore();
-}
-
-function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-}
-
-let particles = [];
-
-function createParticles(x, y, count) {
-    for (let i = 0; i < count; i++) {
-        particles.push({
-            x,
-            y,
-            vx: (Math.random() - .5) * 7,
-            vy: (Math.random() - .5) * 7,
-            life: 30 + Math.random() * 30,
-            size: 2 + Math.random() * 4
-        });
-    }
-}
-
-function updateParticles() {
-    for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-
-        p.x += p.vx;
-        p.y += p.vy;
-
-        p.vx *= .96;
-        p.vy *= .96;
-
-        p.life--;
-
-        if (p.life <= 0) {
-            particles.splice(i, 1);
-        }
-    }
-}
-
-function drawParticles() {
-    for (const p of particles) {
-        ctx.globalAlpha = p.life / 60;
-
-        ctx.beginPath();
-        ctx.arc(
-            p.x,
-            p.y,
-            p.size,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fillStyle = "#fff";
-        ctx.fill();
-    }
-
-    ctx.globalAlpha = 1;
-}
-
-let audioCtx;
-
-function beep(freq, duration) {
-    try {
-        if (!audioCtx) {
-            audioCtx = new (
-                window.AudioContext ||
-                window.webkitAudioContext
-            )();
-        }
-
-        const oscillator = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-
-        oscillator.frequency.value = freq;
-        oscillator.type = "sine";
-
-        gain.gain.setValueAtTime(
-            .06,
-            audioCtx.currentTime
-        );
-
-        gain.gain.exponentialRampToValueAtTime(
-            .001,
-            audioCtx.currentTime + duration
-        );
-
-        oscillator.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        oscillator.start();
-        oscillator.stop(
-            audioCtx.currentTime + duration
-        );
-    } catch {}
-}
-
-function updateTimer() {
-    if (paused || gameOver) return;
-
-    gameTime -= 1 / 60;
-
-    if (gameTime <= 0) {
-        gameTime = 0;
-        gameOver = true;
-
-        if (blueScore > redScore) {
-            showMessage("BLUE WINS!");
-        } else if (redScore > blueScore) {
-            showMessage("RED WINS!");
-        } else {
-            showMessage("TIE GAME!");
-        }
-    }
-
-    const minutes = Math.floor(gameTime / 60);
-    const seconds = Math.floor(gameTime % 60);
-
-    document.getElementById("timer").textContent =
-        String(minutes).padStart(2, "0") +
-        ":" +
-        String(seconds).padStart(2, "0");
-}
-
-let timerAccumulator = 0;
-
-function update() {
-    if (!paused && !gameOver) {
-        player.update();
-        enemy.update();
-
-        blueGoalie.update();
-        redGoalie.update();
-
-        updatePuck();
-
-        collideWithPlayer(player);
-        collideWithPlayer(enemy);
-
-        checkPlayerCollision();
-
-        checkGoalie(blueGoalie);
-        checkGoalie(redGoalie);
-
-        checkGoal();
-
-        updateParticles();
-
-        if (mouse.down) {
-            shootMouse();
-        }
-    }
-}
-
-function draw() {
-    ctx.clearRect(0, 0, innerWidth, innerHeight);
-
-    // background
-    const bg = ctx.createLinearGradient(
-        0,
-        0,
-        0,
-        innerHeight
-    );
-
-    bg.addColorStop(0, "#07182b");
-    bg.addColorStop(1, "#0c263d");
-
-    ctx.fillStyle = bg;
-    ctx.fillRect(
-        0,
-        0,
-        innerWidth,
-        innerHeight
-    );
-
-    drawRink();
-
-    drawParticles();
-
-    blueGoalie.draw();
-    redGoalie.draw();
-
-    player.draw();
-    enemy.draw();
-
-    drawPuck();
-
-    // aim line
-    const dist = Math.hypot(
-        puck.x - player.x,
-        puck.y - player.y
-    );
-
-    if (dist < 90) {
-        ctx.beginPath();
-        ctx.moveTo(player.x, player.y);
-        ctx.lineTo(mouse.x, mouse.y);
-
-        ctx.strokeStyle = "rgba(0,100,255,.2)";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
-
-    document.getElementById("blueScore").textContent = blueScore;
-    document.getElementById("redScore").textContent = redScore;
-
-    document.getElementById("shots").textContent = shots;
-    document.getElementById("hits").textContent = hits;
-
-    document.getElementById("speed").textContent =
-        Math.round(Math.hypot(puck.vx, puck.vy));
-}
-
-let last = performance.now();
-
-function loop(now) {
-    const delta = now - last;
-    last = now;
-
-    if (!paused && !gameOver) {
-        timerAccumulator += delta;
-
-        if (timerAccumulator >= 1000) {
-            timerAccumulator -= 1000;
-            updateTimer();
-        }
-    }
-
-    update();
-    draw();
-
-    requestAnimationFrame(loop);
-}
-
-function togglePause() {
-    if (gameOver) return;
-
-    paused = !paused;
-
-    document.getElementById("pause").textContent =
-        paused ? "RESUME" : "PAUSE";
-}
-
-requestAnimationFrame(loop);
-</script>
-
+  </style>
+  <div style="display: flex;align-items: center;align-content: center;width: 100%;justify-content: center;        ">
+    <svg id='svg' width="800" height="404">
+      <filter id="shadow" color-interpolation-filters="sRGB">
+        <feDropShadow dx="2" dy="2" stdDeviation="2" flood-opacity="0.7" />
+      </filter>
+      <defs>
+        <linearGradient id="homeDangerousAttack" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(255, 0, 0); stop-opacity: 0.5;" />
+        </linearGradient>
+        <linearGradient id="awayStateGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(0, 255, 0); stop-opacity: 0.5;" />
+        </linearGradient>
+        <linearGradient id="homeAttack" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(0, 98, 128); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(0, 68, 255); stop-opacity: 0.5;" />
+        </linearGradient>
+        <linearGradient id="homeSafe" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(0, 255, 0); stop-opacity: 0.4;" />
+        </linearGradient>
+        <linearGradient id="awayDangerousAttack" x1="100%" y1="0%" x2="0%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(255, 0, 0); stop-opacity: 0.5;" />
+        </linearGradient>
+        <linearGradient id="awayAttack" x1="100%" y1="0%" x2="0%" y2="0%">
+          <stop offset="0%" style="stop-color: green; stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: orange; stop-opacity: 0.5;" />
+        </linearGradient>
+        <linearGradient id="awaySafe" x1="100%" y1="0%" x2="0%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(0, 255, 0); stop-opacity: 0.4;" />
+        </linearGradient>
+        <linearGradient id="homeKick" x1="50%" y1="0%" x2="0%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(0, 0, 0); stop-opacity: 0.4;" />
+        </linearGradient>
+        <linearGradient id="homeTopKick" x1="50%" y1="50%" x2="0%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(0, 0, 0); stop-opacity: 0.4;" />
+        </linearGradient>
+        <linearGradient id="homeBottomKick" x1="50%" y1="0%" x2="0%" y2="50%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(0, 0, 0); stop-opacity: 0.4;" />
+        </linearGradient>
+        <linearGradient id="awayKick" x1="50%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(0, 0, 0); stop-opacity: 0.4;" />
+        </linearGradient>
+        <linearGradient id="awayTopKick" x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(0, 0, 0); stop-opacity: 0.4;" />
+        </linearGradient>
+        <linearGradient id="awayBottomKick" x1="50%" y1="50%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(0, 0, 0); stop-opacity: 0.4;" />
+        </linearGradient>
+        <linearGradient id="none" x1="100%" y1="0%" x2="0%" y2="0%">
+          <stop offset="0%" style="stop-color: rgb(255, 255, 255); stop-opacity: 0;" />
+          <stop offset="100%" style="stop-color: rgb(255, 0, 0); stop-opacity: 0;" />
+        </linearGradient>
+      </defs>
+      <g id='scale' transform='scale(1)'>
+        <g transform='translate(0, 0)'>
+          <g id="pitch">
+            <image href="./media/pitch.png" x="0" y="0" width="800" />
+            <!-- <polygon id="pitch-poly" points="160, 136 640, 136 717, 358 83, 358 " style="fill:cyan;fill-opacity:0.5;" /> -->
+          </g>
+          <g id="Attack_Begin">
+            <polygon id="homeStatePolygon" points="160, 136 400, 136 450, 230 400, 358 83, 358 "
+              style="fill: url(#none);" />
+            <polygon id="awayStatePolygon" points="350, 230 400, 136 640, 136 717, 358 400, 358 "
+              style="fill: url(#none);" />
+          </g>
+          <g id="Ball_Track_Begin">
+            <line id="ballLine1" x1="11111110" y1="11111110" x2="011111111" y2="11111110" style="
+                  stroke: rgb(161, 227, 111);
+                  stroke-width: 2;
+                  stroke-opacity: 0.8;
+                " />
+            <ellipse id="TractDot1" cx="11111110" cy="11111110" rx="3" ry="2" stroke="black" stroke-width="0" fill="#a1e36f" />
+            <line id="ballLine2" x1="11111111110" y1="1111111110" x2="1111111110" y2="1111110" style="stroke: rgb(161, 227, 111); stroke-width: 2; stroke-opacity: 0.6;" />
+            <ellipse id="TractDot2" cx="1111111110" cy="1111111110" rx="3" ry="2" stroke="black" stroke-width="0" fill="#a1e36f" />
+            <line id="ballLine3" x1="1111111110" y1="11111111110" x2="1111110" y2="111111110" style="
+                  stroke: rgb(161, 227, 111);
+                  stroke-width: 2;
+                  stroke-opacity: 0.4;
+                " />
+            <ellipse id="TractDot3" cx="1111111110" cy="11111111110" rx="3" ry="2" stroke="black" stroke-width="0" fill="#a1e36f" />
+            <line id="ballLine4" x1="111111110" y1="1111111110" x2="1111110" y2="11111110" style="
+                  stroke: rgb(161, 227, 111);
+                  stroke-width: 2;
+                  stroke-opacity: 0.2;
+                " />
+          </g>
+          <polygon id="offsideRect" points="232, 448 718, 448 830, 588 120, 588 " style="fill:white;"
+            fill-opacity='0' />
+          <g id="Ball_Begin">
+            <polygon id="homeKickPolygon" points="500, 500 667, 213 677, 241" style="fill: url(#none);" />
+            <polygon id="awayKickPolygon" points="500, 500 113, 213 123, 241" style="fill: url(#none);" />
+            <ellipse id="ball_shadow" cx="51111110" cy="511111110" rx="5" ry="5" stroke="none" fill="grey"
+              style="fill: grey; fill-opacity: 0.3;" />
+            <image id="ball" href="./media/puck1.png" x="1111111115" y="111111120" width="10" />
+          </g>
+          <g id="Alert_Begin">
+            <rect id='actionBoard' x="450" y="508" width="0" height="0" rx="3" ry="3"
+              style="fill:rgb(0, 20, 0); fill-opacity: 0.5;" />
+            <rect id='cardBoard' x="450" y="508" width="0" height="0" rx="3" ry="3"
+              style="fill:rgb(255, 0, 0); fill-opacity: 0.9;" />
+            <g id='subsitution'>
+              <polygon id="substitutionOut" points="100, 200 300, 200 250, 240 100, 240 " style="fill:black;"
+                fill-opacity="0" />
+              <text id="substitutionOutPlayer" fill="#fff" font-size="16" font-family="InriaSans" x="115" y="225"
+                fill-opacity="0.9" text-anchor="start"> </text>
+              <polygon id="substitutionIn" points="700, 593 850, 593 850, 633 650, 633 " style="fill:black;"
+                fill-opacity="0" />
+              <text id="substitutionInPlayer" fill="#fff" font-size="16" font-family="InriaSans" x="835" y="618"
+                fill-opacity="0.9" text-anchor="end"> </text>
+            </g>
+            <line id="stateBoardLine" x1="385" y1="493" x2="385" y2="523" style="
+                  stroke: rgb(205, 205, 255);
+                  stroke-width: 2;
+                " stroke-opacity='0' />
+            <text id="ballState" fill="#fff" font-size="14" font-family="InriaSans" x="380" y="505" fill-opacity="0.9"
+              text-anchor="end">
+            </text>
+            <text id="holder" fill="#a1e36f" font-size="14" font-family="InriaSans" x="380" y="520" fill-opacity="0.9"
+              text-anchor="end">
+            </text>
+            <g id="awayStateLabels" transform='translate(200,300)' style='display: none;'>
+              <rect id='awayStateBoard' x="0" y="0" width="200" height="40" rx="20" ry="20"
+                style="fill:rgb(0, 20, 0); fill-opacity: 0.3;" />
+              <circle cx="20" cy="20" r="20" stroke="black" fill="black" />
+              <text id="awayState" fill="#a1e36f" font-size="16" font-family="InriaSans" x="50" y="16"
+                fill-opacity="0.9" text-anchor="start"> Ball Safe </text>
+              <text id="awayName" fill="#fff" font-size="16" font-family="InriaSans" x="50" y="35" fill-opacity="0.9"
+                text-anchor="start"> away </text>
+              <g id='awayJersey' opacity='1' transform="translate(4, 4)">
+                <g transform="scale(0.1)">
+                  <g fill="none" fill-rule="evenodd">
+                    <path id="state_awayPlayerBase"
+                      d="M90.53 278.27c-5.63-7.56-6.86-11.2-6.86-17.8 0-6.6.68-21.38 1.71-24.8 0-5.29 1.29-6.69 2.09-10.75.8-4.07 2.3-19.66 2.3-35.2 0-8.01.62-10.8 1.23-19.9.6-9 .82-25.88.63-26.05-.57 1.3-2.4 12.28-4.16 23.26a303.6 303.6 0 01-4.48 22.69c-.41 1.06-1.02 5.4-1.35 6.63l-4.12 20.58c-1.4 6.63-2.83 11.1-4.27 13.45-.41 2.46-.07 3.87-1.49 5.55-.27 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.28-1.24 4.06a6.65 6.65 0 00-3.39 2.82 41.6 41.6 0 01-21.34 4.09c-7.29-.51-12.1-4.13-12.32-6.92a6.17 6.17 0 01-.32-4.05c.53-2.05 4.34-32.94 5.83-47.63.03-.38.5-.81.53-1.19.48-4.6 1.19-10.73 2.13-18.4-.53-1.32.03-4.61 1.68-9.89.35-9.55.53-15.7.53-18.44 0-2.74.47-9.1 1.42-19.05 2.18-17.62 3.62-27.77 4.3-30.42.69-2.66 1.68-11.91 3-27.76 6.64-14.4 13.38-22.36 20.22-23.88 6.41-3.02 9.76-5.84 15.96-7.3 4.07-1.41 9.95-3.33 17.64-5.77 3.75-.93 5.87-1.39 6.35-1.39.71 0 7.25-3.22 7.25-3.22s2-4.23 3.23-6c2.94-2.37 19.28-7.02 34.44-7.02h.48c15.02.1 31.05 4.68 33.95 7.02 1.24 1.77 3.23 6 3.23 6s6.54 3.22 7.25 3.22c.48 0 2.6.46 6.35 1.4a789.95 789.95 0 0117.64 5.75c6.2 1.47 9.55 4.29 15.96 7.3 6.84 1.53 13.59 9.49 20.22 23.89 1.32 15.85 2.32 25.1 3 27.76.69 2.65 2.12 12.8 4.3 30.42.95 9.96 1.42 16.3 1.42 19.05 0 2.74.18 8.89.54 18.44 1.64 5.28 2.2 8.57 1.67 9.9.94 7.66 1.65 13.79 2.13 18.4.04.37.5.8.53 1.18 1.5 14.7 5.6 45.59 6.14 47.64a6.17 6.17 0 01-.32 4.05c-.22 2.79-5.34 6.4-12.63 6.9a41.6 41.6 0 01-21.34-4.08 6.66 6.66 0 00-3.39-2.82c-1.06-.78-.84-1.96-1.23-4.06-1.17-1.15-.77-2.56-1.04-4.43-1.41-1.68-1.07-3.09-1.48-5.55-1.45-2.34-2.88-6.82-4.28-13.45L231.6 197c-.33-1.23-.85-5.57-1.26-6.63-.4-1.06-6.47-42-7.62-44.63-.2.17-1.18 14-.57 23.05.6 9.05 1.22 20.03 1.22 20.93 0 5.69 1.29 16.64 1.29 19.02 0 2.4.83 12.1 1.63 16.18.8 4.06 2.12 5.7 1.58 10.75 1.03 3.42 1.71 18.2 1.71 24.8 0 6.6-1.23 10.24-6.86 17.8-5.63 7.55-12.28 10.16-26.4 15.57s-39.7 4.41-39.7 4.41-25.57 1-39.7-4.4c-14.11-5.42-20.76-8.03-26.39-15.58z"
+                      fill="#03585e"
+                    ></path>
+                    <g>
+                      <path id="state_awayPlayerLeftLongSleeve"
+                        d="M225.3 217.23c.29 2.94.6 5.79 1.14 8.11.7 3.03 1.66 5.6 1.46 6.96-3.3 10.94-11.85 15.33-29.16 21.7-4.45 1.65-11.53 2.95-17.73 3.35-9.52.6-19.37.42-23.76.5v.04l-.5-.02-.5.02v-.04c-4.4-.08-14.25.1-23.77-.5-6.2-.4-13.41-1.63-17.72-3.34-17.24-6.83-27.28-10.16-28.98-22.48.18-1.59.91-3.62 1.5-6.19.29-1.28.42-2.75.67-4.27.37-2.29 1.1-12.34 1.23-14.41.14-2.07.48-8.03.48-10.6 5.11 4.57 16.5 12.59 31.1 14.6 13.82 1.9 21.4 3.35 35.98 3.39 14.6-.04 22.17-1.5 36-3.4 14.59-2 25.96-8.95 31.07-13.52.4 3.33.63 7.79.8 10.37.2 2.57.47 7.72.7 9.73z"
+                        fill="#005a61"
+                      ></path>
+                      <path id="state_awayPlayerRightLongSleeve"
+                        d="M32.54 244.52c-.35-.8-.85-1.83-.32-3.88s4.5-33.11 5.99-47.8c.04-.39.5-.82.53-1.2.29-2.75.71-6.08 1.16-9.93 2.92 1.92 5.88 3.28 11.29 4.34 2.6.5 9.42 1.07 13.57.74 5.69-.46 9.31-2.4 12.44-2.75 3.9-.44 5.85 0 7.28.16a483.05 483.05 0 00-2.5 11.52l-4.2 21.32c-1.4 6.62-2.83 11.1-4.27 13.44-.41 2.46-.07 3.87-1.49 5.55-.26 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.29-1.24 4.06a6.65 6.65 0 00-3.39 2.82c-2.64 1.3-11.4 5.04-21.33 4.09-9.94-.95-12.4-5.75-12.5-6.91zm248.58 0c.32-1.13.85-2 .32-4.06-.53-2.05-4.68-32.93-6.17-47.63-.04-.38-.5-.8-.53-1.19-.29-2.75-.71-6.08-1.17-9.93-2.91 1.92-5.88 3.28-11.28 4.34a66.11 66.11 0 01-13.57.74c-5.69-.46-9.31-2.4-12.45-2.75-3.89-.44-5.6 0-6.99.19.12.77.49 3.05 1.02 6.06.19 1.05.45 2.13.6 2.84.2.94.49 2.84.52 3.17.19.7 1.61 7.6 4.28 20.74 1.4 6.62 2.82 11.1 4.27 13.44.41 2.46.07 3.87 1.49 5.55.26 1.87-.13 3.28 1.03 4.43.4 2.1.18 3.29 1.23 4.06 1.23.4 2.62 1.49 3.4 2.82 2.64 1.3 11.57 4.81 21.33 4.09 10.17-1.43 12.42-5.27 12.67-6.92z"
+                        fill="#005a61"
+                      ></path>
+                    </g>
+                    <g>
+                      <path id="state_awayPlayerLeftSleeve"
+                        d="M39.9 181.38c.37-3.87.74-6.53.98-8.13-.45-1.11-.24-3.88 1.67-9.9.21-6 .49-13.82.49-16.82 0-4.22.72-13.33.98-15.27 4 2.04 10.52 3.6 15.88 4.04 5.37.44 27.31.35 31.7-.55.16 2.25.16 6.2.16 8.4-.38 1.12-.74 2.9-1.4 6.64s-2.91 17.34-3.44 20.6c-.52 3.27-1.8 9.72-2.6 13.48-1-.08-3.03-.6-7.12-.16-3.26.35-9 3.16-15.72 2.88-6.71-.27-14.37-.4-21.58-5.21zm233.66 0c-.36-3.87-.74-6.53-.97-8.13.45-1.11.23-3.88-1.67-9.9-.22-6-.5-13.82-.5-16.82 0-4.22-.71-13.33-.97-15.27-4.01 2.04-10.53 3.6-15.89 4.04-5.36.44-26.09.5-30.47-.4a54.24 54.24 0 00-.48 10.45c.48 1.05.36.67 1.04 4.39.7 3.71 2.76 17.3 3.28 20.56.53 3.26 1.65 9.6 2.26 13.58 1-.08 2.98-.62 7.07-.17 3.26.35 9 3.16 15.72 2.88 6.72-.27 14.37-.4 21.58-5.21z"
+                        fill="#000000"
+                      ></path>
+                      <path id="state_awayPlayerRightSleeve"
+                        d="M229.58 260.46c0 6.6-1.36 10.45-6.98 18.01-5.63 7.56-12.45 10.07-26.57 15.49-13.03 5-35.8 4.53-39.26 4.43-3.44.1-26.46.57-39.49-4.43-14.12-5.42-20.89-7.8-26.51-15.36-5.63-7.55-7.1-11.02-7.1-18.14 0-4.1.42-20.24 1.71-24.8 0-.92 0-1.85.16-2.76 1.34 5.46 3 7.56 6.21 10.5 4.15 3.73 12.27 6.92 20.2 10.1 13.66 6.07 32.81 4.39 44.82 5.04 11.57-.65 30.82 1.09 45.76-5.34 8-2.93 15.42-6.49 19.17-10.05 3.22-2.94 4.57-5.12 6.29-9.53.04.64-.06 1.57-.06 2.16 1.09 3.88 1.65 20.5 1.65 24.68z"
+                        fill="#000000"
+                      ></path>
+                    </g>
+                    <g>
+                      <path
+                        d="M194.26 25.97c-14.86-4.2-29.25-4.2-37.62-4.2h-.04 0c-8.37 0-22.76 0-37.62 4.2"
+                        stroke-opacity=".2"
+                        stroke="#010202"
+                      ></path>
+                      <path
+                        d="M90.53 278.27c-5.63-7.56-6.86-11.2-6.86-17.8 0-6.6.68-21.38 1.71-24.8 0-5.29 1.29-6.69 2.09-10.75.8-4.07 2.3-19.66 2.3-35.2 0-8.01.62-10.8 1.23-19.9.6-9 .82-25.88.63-26.05-.57 1.3-2.4 12.28-4.16 23.26a303.6 303.6 0 01-4.48 22.69c-.41 1.06-1.02 5.4-1.35 6.63l-4.12 20.58c-1.4 6.63-2.83 11.1-4.27 13.45-.41 2.46-.07 3.87-1.49 5.55-.27 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.28-1.24 4.06a6.65 6.65 0 00-3.39 2.82 41.6 41.6 0 01-21.34 4.09c-7.29-.51-12.1-4.13-12.32-6.92a6.17 6.17 0 01-.32-4.05c.53-2.05 4.34-32.94 5.83-47.63.03-.38.5-.81.53-1.19.48-4.6 1.19-10.73 2.13-18.4-.53-1.32.03-4.61 1.68-9.89.35-9.55.53-15.7.53-18.44 0-2.74.47-9.1 1.42-19.05 2.18-17.62 3.62-27.77 4.3-30.42.69-2.66 1.68-11.91 3-27.76 6.64-14.4 13.38-22.36 20.22-23.88 6.41-3.02 9.76-5.84 15.96-7.3 4.07-1.41 9.95-3.33 17.64-5.77 3.75-.93 5.87-1.39 6.35-1.39.71 0 7.25-3.22 7.25-3.22s2-4.23 3.23-6c2.94-2.37 19.28-7.02 34.44-7.02h.48c15.02.1 31.05 4.68 33.95 7.02 1.24 1.77 3.23 6 3.23 6s6.54 3.22 7.25 3.22c.48 0 2.6.46 6.35 1.4a789.95 789.95 0 0117.64 5.75c6.2 1.47 9.55 4.29 15.96 7.3 6.84 1.53 13.59 9.49 20.22 23.89 1.32 15.85 2.32 25.1 3 27.76.69 2.65 2.12 12.8 4.3 30.42.95 9.96 1.42 16.3 1.42 19.05 0 2.74.18 8.89.54 18.44 1.64 5.28 2.2 8.57 1.67 9.9.94 7.66 1.65 13.79 2.13 18.4.04.37.5.8.53 1.18 1.5 14.7 5.6 45.59 6.14 47.64a6.17 6.17 0 01-.32 4.05c-.22 2.79-5.34 6.4-12.63 6.9a41.6 41.6 0 01-21.34-4.08 6.66 6.66 0 00-3.39-2.82c-1.06-.78-.84-1.96-1.23-4.06-1.17-1.15-.77-2.56-1.04-4.43-1.41-1.68-1.07-3.09-1.48-5.55-1.45-2.34-2.88-6.82-4.28-13.45L231.6 197c-.33-1.23-.85-5.57-1.26-6.63-.4-1.06-6.47-42-7.62-44.63-.2.17-1.18 14-.57 23.05.6 9.05 1.22 20.03 1.22 20.93 0 5.69 1.29 16.64 1.29 19.02 0 2.4.83 12.1 1.63 16.18.8 4.06 2.12 5.7 1.58 10.75 1.03 3.42 1.71 18.2 1.71 24.8 0 6.6-1.23 10.24-6.86 17.8-5.63 7.55-12.28 10.16-26.4 15.57s-39.7 4.41-39.7 4.41-25.57 1-39.7-4.4c-14.11-5.42-20.76-8.03-26.39-15.58z"
+                        stroke-opacity=".2"
+                        stroke="#000"
+                      ></path>
+                      <path
+                        d="M229.43 261.85a27.8 27.8 0 01-3.37 9.63c-.97 1.8-2.2 3.69-3.7 5.72-5.64 7.55-11.92 10.26-26.04 15.67-14.12 5.42-39.7 4.41-39.7 4.41s-25.59 1.06-39.66-4.4c-14.08-5.47-20.12-7.77-25.75-15.33-4.26-5.72-6.7-10.1-7.28-14.94m159.39-19.32c1.68.3 3.74 1.9 4.51 3.22 2.65 1.3 9.77 4.65 20.67 3.85 7.02-.5 11.75-4.03 11.75-6.04.37-.89.66-1.74.87-2.57m-211.17 1.53a7.75 7.75 0 00-4.52 3.23c-2.64 1.29-9.76 4.64-20.67 3.85-7.01-.52-11.53-3.76-11.53-5.77-.17-1.66-.51-2.64-1.01-2.94"
+                        stroke-opacity=".2"
+                        stroke="#000"
+                      ></path>
+                      <path
+                        d="M91.63 143.77C93.9 111.6 67.73 66 57.59 59.17m165.13 86.57c-1.04-14.8 5.15-32.68 11.81-48.53 7.82-18.6 16.76-34.35 22.23-38.03"
+                        stroke-opacity=".1"
+                        stroke="#000"
+                      ></path>
+                      <image href="./media/long_overlay.62d6c0f6.png" ></image>
+                    </g>
+                  </g>
+                </g>
+              </g>
+            </g>
+            <g id="homeStateLabels" transform='translate(500,300)' style='display: none;'>
+              <rect id='homeStateBoard' x="-200" y="0" width="200" height="40" rx="20" ry="20"
+                style="fill:rgb(0, 20, 0); fill-opacity: 0.3;" />
+              <circle cx="-20" cy="20" r="20" stroke="black" fill="black" />
+              <text id="homeState" fill="#a1e36f" font-size="16" font-family="InriaSans" x="-50" y="16"
+                fill-opacity="0.9" text-anchor="end"> Attacking</text>
+              <text id="homeName" fill="#fff" font-size="16" font-family="InriaSans" x="-50" y="35" fill-opacity="0.9"
+                text-anchor="end"> home</text>
+              <g id='homeJersey' opacity='1' transform="translate(-35, 4)">
+                <g transform="scale(0.1)">
+                  <g fill="none" fill-rule="evenodd">
+                    <path id="state_homePlayerBase"
+                      d="M90.53 278.27c-5.63-7.56-6.86-11.2-6.86-17.8 0-6.6.68-21.38 1.71-24.8 0-5.29 1.29-6.69 2.09-10.75.8-4.07 2.3-19.66 2.3-35.2 0-8.01.62-10.8 1.23-19.9.6-9 .82-25.88.63-26.05-.57 1.3-2.4 12.28-4.16 23.26a303.6 303.6 0 01-4.48 22.69c-.41 1.06-1.02 5.4-1.35 6.63l-4.12 20.58c-1.4 6.63-2.83 11.1-4.27 13.45-.41 2.46-.07 3.87-1.49 5.55-.27 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.28-1.24 4.06a6.65 6.65 0 00-3.39 2.82 41.6 41.6 0 01-21.34 4.09c-7.29-.51-12.1-4.13-12.32-6.92a6.17 6.17 0 01-.32-4.05c.53-2.05 4.34-32.94 5.83-47.63.03-.38.5-.81.53-1.19.48-4.6 1.19-10.73 2.13-18.4-.53-1.32.03-4.61 1.68-9.89.35-9.55.53-15.7.53-18.44 0-2.74.47-9.1 1.42-19.05 2.18-17.62 3.62-27.77 4.3-30.42.69-2.66 1.68-11.91 3-27.76 6.64-14.4 13.38-22.36 20.22-23.88 6.41-3.02 9.76-5.84 15.96-7.3 4.07-1.41 9.95-3.33 17.64-5.77 3.75-.93 5.87-1.39 6.35-1.39.71 0 7.25-3.22 7.25-3.22s2-4.23 3.23-6c2.94-2.37 19.28-7.02 34.44-7.02h.48c15.02.1 31.05 4.68 33.95 7.02 1.24 1.77 3.23 6 3.23 6s6.54 3.22 7.25 3.22c.48 0 2.6.46 6.35 1.4a789.95 789.95 0 0117.64 5.75c6.2 1.47 9.55 4.29 15.96 7.3 6.84 1.53 13.59 9.49 20.22 23.89 1.32 15.85 2.32 25.1 3 27.76.69 2.65 2.12 12.8 4.3 30.42.95 9.96 1.42 16.3 1.42 19.05 0 2.74.18 8.89.54 18.44 1.64 5.28 2.2 8.57 1.67 9.9.94 7.66 1.65 13.79 2.13 18.4.04.37.5.8.53 1.18 1.5 14.7 5.6 45.59 6.14 47.64a6.17 6.17 0 01-.32 4.05c-.22 2.79-5.34 6.4-12.63 6.9a41.6 41.6 0 01-21.34-4.08 6.66 6.66 0 00-3.39-2.82c-1.06-.78-.84-1.96-1.23-4.06-1.17-1.15-.77-2.56-1.04-4.43-1.41-1.68-1.07-3.09-1.48-5.55-1.45-2.34-2.88-6.82-4.28-13.45L231.6 197c-.33-1.23-.85-5.57-1.26-6.63-.4-1.06-6.47-42-7.62-44.63-.2.17-1.18 14-.57 23.05.6 9.05 1.22 20.03 1.22 20.93 0 5.69 1.29 16.64 1.29 19.02 0 2.4.83 12.1 1.63 16.18.8 4.06 2.12 5.7 1.58 10.75 1.03 3.42 1.71 18.2 1.71 24.8 0 6.6-1.23 10.24-6.86 17.8-5.63 7.55-12.28 10.16-26.4 15.57s-39.7 4.41-39.7 4.41-25.57 1-39.7-4.4c-14.11-5.42-20.76-8.03-26.39-15.58z"
+                      fill="#03585e"
+                    ></path>
+                    <g>
+                      <path id="state_homePlayerLeftLongSleeve"
+                        d="M225.3 217.23c.29 2.94.6 5.79 1.14 8.11.7 3.03 1.66 5.6 1.46 6.96-3.3 10.94-11.85 15.33-29.16 21.7-4.45 1.65-11.53 2.95-17.73 3.35-9.52.6-19.37.42-23.76.5v.04l-.5-.02-.5.02v-.04c-4.4-.08-14.25.1-23.77-.5-6.2-.4-13.41-1.63-17.72-3.34-17.24-6.83-27.28-10.16-28.98-22.48.18-1.59.91-3.62 1.5-6.19.29-1.28.42-2.75.67-4.27.37-2.29 1.1-12.34 1.23-14.41.14-2.07.48-8.03.48-10.6 5.11 4.57 16.5 12.59 31.1 14.6 13.82 1.9 21.4 3.35 35.98 3.39 14.6-.04 22.17-1.5 36-3.4 14.59-2 25.96-8.95 31.07-13.52.4 3.33.63 7.79.8 10.37.2 2.57.47 7.72.7 9.73z"
+                        fill="#005a61"
+                      ></path>
+                      <path id="state_homePlayerRightLongSleeve"
+                        d="M32.54 244.52c-.35-.8-.85-1.83-.32-3.88s4.5-33.11 5.99-47.8c.04-.39.5-.82.53-1.2.29-2.75.71-6.08 1.16-9.93 2.92 1.92 5.88 3.28 11.29 4.34 2.6.5 9.42 1.07 13.57.74 5.69-.46 9.31-2.4 12.44-2.75 3.9-.44 5.85 0 7.28.16a483.05 483.05 0 00-2.5 11.52l-4.2 21.32c-1.4 6.62-2.83 11.1-4.27 13.44-.41 2.46-.07 3.87-1.49 5.55-.26 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.29-1.24 4.06a6.65 6.65 0 00-3.39 2.82c-2.64 1.3-11.4 5.04-21.33 4.09-9.94-.95-12.4-5.75-12.5-6.91zm248.58 0c.32-1.13.85-2 .32-4.06-.53-2.05-4.68-32.93-6.17-47.63-.04-.38-.5-.8-.53-1.19-.29-2.75-.71-6.08-1.17-9.93-2.91 1.92-5.88 3.28-11.28 4.34a66.11 66.11 0 01-13.57.74c-5.69-.46-9.31-2.4-12.45-2.75-3.89-.44-5.6 0-6.99.19.12.77.49 3.05 1.02 6.06.19 1.05.45 2.13.6 2.84.2.94.49 2.84.52 3.17.19.7 1.61 7.6 4.28 20.74 1.4 6.62 2.82 11.1 4.27 13.44.41 2.46.07 3.87 1.49 5.55.26 1.87-.13 3.28 1.03 4.43.4 2.1.18 3.29 1.23 4.06 1.23.4 2.62 1.49 3.4 2.82 2.64 1.3 11.57 4.81 21.33 4.09 10.17-1.43 12.42-5.27 12.67-6.92z"
+                        fill="#005a61"
+                      ></path>
+                    </g>
+                    <g>
+                      <path id="state_homePlayerLeftSleeve"
+                        d="M39.9 181.38c.37-3.87.74-6.53.98-8.13-.45-1.11-.24-3.88 1.67-9.9.21-6 .49-13.82.49-16.82 0-4.22.72-13.33.98-15.27 4 2.04 10.52 3.6 15.88 4.04 5.37.44 27.31.35 31.7-.55.16 2.25.16 6.2.16 8.4-.38 1.12-.74 2.9-1.4 6.64s-2.91 17.34-3.44 20.6c-.52 3.27-1.8 9.72-2.6 13.48-1-.08-3.03-.6-7.12-.16-3.26.35-9 3.16-15.72 2.88-6.71-.27-14.37-.4-21.58-5.21zm233.66 0c-.36-3.87-.74-6.53-.97-8.13.45-1.11.23-3.88-1.67-9.9-.22-6-.5-13.82-.5-16.82 0-4.22-.71-13.33-.97-15.27-4.01 2.04-10.53 3.6-15.89 4.04-5.36.44-26.09.5-30.47-.4a54.24 54.24 0 00-.48 10.45c.48 1.05.36.67 1.04 4.39.7 3.71 2.76 17.3 3.28 20.56.53 3.26 1.65 9.6 2.26 13.58 1-.08 2.98-.62 7.07-.17 3.26.35 9 3.16 15.72 2.88 6.72-.27 14.37-.4 21.58-5.21z"
+                        fill="#000000"
+                      ></path>
+                      <path id="state_homePlayerRightSleeve"
+                        d="M229.58 260.46c0 6.6-1.36 10.45-6.98 18.01-5.63 7.56-12.45 10.07-26.57 15.49-13.03 5-35.8 4.53-39.26 4.43-3.44.1-26.46.57-39.49-4.43-14.12-5.42-20.89-7.8-26.51-15.36-5.63-7.55-7.1-11.02-7.1-18.14 0-4.1.42-20.24 1.71-24.8 0-.92 0-1.85.16-2.76 1.34 5.46 3 7.56 6.21 10.5 4.15 3.73 12.27 6.92 20.2 10.1 13.66 6.07 32.81 4.39 44.82 5.04 11.57-.65 30.82 1.09 45.76-5.34 8-2.93 15.42-6.49 19.17-10.05 3.22-2.94 4.57-5.12 6.29-9.53.04.64-.06 1.57-.06 2.16 1.09 3.88 1.65 20.5 1.65 24.68z"
+                        fill="#000000"
+                      ></path>
+                    </g>
+                    <g>
+                      <path
+                        d="M194.26 25.97c-14.86-4.2-29.25-4.2-37.62-4.2h-.04 0c-8.37 0-22.76 0-37.62 4.2"
+                        stroke-opacity=".2"
+                        stroke="#010202"
+                      ></path>
+                      <path
+                        d="M90.53 278.27c-5.63-7.56-6.86-11.2-6.86-17.8 0-6.6.68-21.38 1.71-24.8 0-5.29 1.29-6.69 2.09-10.75.8-4.07 2.3-19.66 2.3-35.2 0-8.01.62-10.8 1.23-19.9.6-9 .82-25.88.63-26.05-.57 1.3-2.4 12.28-4.16 23.26a303.6 303.6 0 01-4.48 22.69c-.41 1.06-1.02 5.4-1.35 6.63l-4.12 20.58c-1.4 6.63-2.83 11.1-4.27 13.45-.41 2.46-.07 3.87-1.49 5.55-.27 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.28-1.24 4.06a6.65 6.65 0 00-3.39 2.82 41.6 41.6 0 01-21.34 4.09c-7.29-.51-12.1-4.13-12.32-6.92a6.17 6.17 0 01-.32-4.05c.53-2.05 4.34-32.94 5.83-47.63.03-.38.5-.81.53-1.19.48-4.6 1.19-10.73 2.13-18.4-.53-1.32.03-4.61 1.68-9.89.35-9.55.53-15.7.53-18.44 0-2.74.47-9.1 1.42-19.05 2.18-17.62 3.62-27.77 4.3-30.42.69-2.66 1.68-11.91 3-27.76 6.64-14.4 13.38-22.36 20.22-23.88 6.41-3.02 9.76-5.84 15.96-7.3 4.07-1.41 9.95-3.33 17.64-5.77 3.75-.93 5.87-1.39 6.35-1.39.71 0 7.25-3.22 7.25-3.22s2-4.23 3.23-6c2.94-2.37 19.28-7.02 34.44-7.02h.48c15.02.1 31.05 4.68 33.95 7.02 1.24 1.77 3.23 6 3.23 6s6.54 3.22 7.25 3.22c.48 0 2.6.46 6.35 1.4a789.95 789.95 0 0117.64 5.75c6.2 1.47 9.55 4.29 15.96 7.3 6.84 1.53 13.59 9.49 20.22 23.89 1.32 15.85 2.32 25.1 3 27.76.69 2.65 2.12 12.8 4.3 30.42.95 9.96 1.42 16.3 1.42 19.05 0 2.74.18 8.89.54 18.44 1.64 5.28 2.2 8.57 1.67 9.9.94 7.66 1.65 13.79 2.13 18.4.04.37.5.8.53 1.18 1.5 14.7 5.6 45.59 6.14 47.64a6.17 6.17 0 01-.32 4.05c-.22 2.79-5.34 6.4-12.63 6.9a41.6 41.6 0 01-21.34-4.08 6.66 6.66 0 00-3.39-2.82c-1.06-.78-.84-1.96-1.23-4.06-1.17-1.15-.77-2.56-1.04-4.43-1.41-1.68-1.07-3.09-1.48-5.55-1.45-2.34-2.88-6.82-4.28-13.45L231.6 197c-.33-1.23-.85-5.57-1.26-6.63-.4-1.06-6.47-42-7.62-44.63-.2.17-1.18 14-.57 23.05.6 9.05 1.22 20.03 1.22 20.93 0 5.69 1.29 16.64 1.29 19.02 0 2.4.83 12.1 1.63 16.18.8 4.06 2.12 5.7 1.58 10.75 1.03 3.42 1.71 18.2 1.71 24.8 0 6.6-1.23 10.24-6.86 17.8-5.63 7.55-12.28 10.16-26.4 15.57s-39.7 4.41-39.7 4.41-25.57 1-39.7-4.4c-14.11-5.42-20.76-8.03-26.39-15.58z"
+                        stroke-opacity=".2"
+                        stroke="#000"
+                      ></path>
+                      <path
+                        d="M229.43 261.85a27.8 27.8 0 01-3.37 9.63c-.97 1.8-2.2 3.69-3.7 5.72-5.64 7.55-11.92 10.26-26.04 15.67-14.12 5.42-39.7 4.41-39.7 4.41s-25.59 1.06-39.66-4.4c-14.08-5.47-20.12-7.77-25.75-15.33-4.26-5.72-6.7-10.1-7.28-14.94m159.39-19.32c1.68.3 3.74 1.9 4.51 3.22 2.65 1.3 9.77 4.65 20.67 3.85 7.02-.5 11.75-4.03 11.75-6.04.37-.89.66-1.74.87-2.57m-211.17 1.53a7.75 7.75 0 00-4.52 3.23c-2.64 1.29-9.76 4.64-20.67 3.85-7.01-.52-11.53-3.76-11.53-5.77-.17-1.66-.51-2.64-1.01-2.94"
+                        stroke-opacity=".2"
+                        stroke="#000"
+                      ></path>
+                      <path
+                        d="M91.63 143.77C93.9 111.6 67.73 66 57.59 59.17m165.13 86.57c-1.04-14.8 5.15-32.68 11.81-48.53 7.82-18.6 16.76-34.35 22.23-38.03"
+                        stroke-opacity=".1"
+                        stroke="#000"
+                      ></path>
+                      <image href="./media/long_overlay.62d6c0f6.png" ></image>
+                    </g>
+                  </g>
+                </g>
+              </g>
+            </g>
+          </g>
+          <g id="Text Begin">
+            <path d="M 403 15 L 495 15 A 12 12, 0, 0, 1, 495 39 L 403 39 Z" fill="white" fill-opacity='0.3' />
+            <path d="M 397 15 L 305 15 A 12 12, 0, 0, 0, 305 39 L 397 39 Z" fill="white" fill-opacity='0.3' />
+            <text id="time" fill="#fff" font-size="18" font-family="InriaSans" x="449" y="33" fill-opacity="1"
+              text-anchor="middle">
+              00:00
+            </text>
+            <text id="score" fill="#fff" font-size="60" font-family="InriaSans" x="400" y="90" fill-opacity="1"
+              text-anchor="middle">
+              0-0
+            </text>
+            <text id="period" fill="#fff" font-size="18" font-family="InriaSans" x="351" y="33" fill-opacity="1"
+              text-anchor="middle"> 1st Period
+            </text>
+            
+          <rect id="center_rect" x="210" y="160" width="380" height="60" style="
+              fill: black;
+              stroke: grey;
+              stroke-width: 0;
+              stroke-opacity: 1;
+            " fill-opacity='0' />
+          <text id="center_text" fill="#fff" font-size="38" font-family="InriaSans" x="400" y="220" fill-opacity="1"
+            text-anchor="middle"></text>
+          <text id="bottom_text" fill="#fff" font-size="30" font-family="InriaSans" x="400" y="260" fill-opacity="0.71"
+            text-anchor="middle"></text>
+
+          </g>
+          <defs>
+            <linearGradient x1="3.967%" y1="3.362%" x2="82.02%" y2="94.266%" id="2_linearGradient-1">
+              <stop stop-color="#FFF" stop-opacity="0.085" offset="0%"></stop>
+              <stop stop-color="#FFF" stop-opacity="0.03" offset="20%"></stop>
+              <stop stop-color="#FFF" stop-opacity="0.1" offset="40%"></stop>
+              <stop stop-color="#FFF" stop-opacity="0.03" offset="60%"></stop>
+              <stop stop-color="#FFF" stop-opacity="0.06" offset="80%"></stop>
+              <stop stop-color="#FFF" stop-opacity="0" offset="100%"></stop>
+            </linearGradient>
+            <path
+              d="M156.55 16.76h26.58c5.06 0 6.75 2.6 9.78 4.58 1.6 0 7.04 2.88 11.71 5.03 4.67 2.14 35.4 15.24 48.96 20.8 13.56 5.58 16.52 16.46 18.16 20.57 5.45 10.84 4.32 29.53 4.32 37.16v27.13c0 2.15-.62 2.76-3.12 3.74-12.74 4.35-32.02 3.2-36.3 3.2-4.27 0-4.33-2.02-5.15-4.13-.54-1.41-.54-7.1 0-17.08-.55-2.82-1.08-3.64-1.6-2.48-3.62 7.08-8.92 44.57-10 55.91-1.1 11.34-.87 30-.87 36.29 0 6.29 2.2 21.94 2.92 28.22a971 971 0 0 0 3.31 24.54c.68 4.52 1.74 8.66 2.79 12.85.74 1.9 0 3.79-1.05 5.2-1.05 1.43-5.97 4.68-12.55 8.14-6.59 3.46-14.81 5.27-20.91 6.12-6.1.86-21.65 2.3-36.98 2.3-15.32 0-29.61-1.19-36.97-2.3-7.36-1.1-13.74-2.66-20.91-6.12-7.18-3.46-11.5-6.71-12.55-8.13-1.05-1.42-1.79-3.3-1.05-5.21 1.05-4.19 2.1-8.33 2.78-12.85a971.72 971.72 0 0 0 3.32-24.54c.72-6.28 2.92-21.93 2.92-28.22 0-6.29.22-24.95-.87-36.29-1.08-11.34-6.38-48.83-10-55.91-.52-1.16-1.06-.34-1.6 2.48.54 9.98.54 15.67 0 17.08-.83 2.1-.89 4.13-5.16 4.13-4.27 0-23.56 1.15-36.3-3.2-2.5-.98-3.1-1.6-3.1-3.74V104.9c0-7.63-1.14-26.32 4.3-37.16 1.65-4.1 4.6-15 18.17-20.56a2812.85 2812.85 0 0 0 48.96-20.81c4.67-2.15 10.1-5.03 11.7-5.03 3.04-1.97 4.73-4.58 9.8-4.58h26.56z"
+              id="2_path-2"></path>
+            <filter x="-5.7%" y="-3%" width="111.4%" height="109.6%" filterUnits="objectBoundingBox" id="2_filter-4">
+              <feMorphology radius="0.578" operator="dilate" in="SourceAlpha" result="shadowSpreadOuter1">
+              </feMorphology>
+              <feOffset dy="5" in="shadowSpreadOuter1" result="shadowOffsetOuter1"></feOffset>
+              <feGaussianBlur stdDeviation="3.5" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+              <feComposite in="shadowBlurOuter1" in2="SourceAlpha" operator="out" result="shadowBlurOuter1">
+              </feComposite>
+              <feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.3 0" in="shadowBlurOuter1"></feColorMatrix>
+            </filter>
+            <path
+              d="M2.898 88.597c.07-.1-1.93-12-2.08-14.96-.84-16.8-.84-30.15 6.2-43.9 3.98-7.8 13.96-18.28 23.71-24.04 3.3-1.95 5.73-2.915 9.48-4.711 12.93-4.076 28.283-3.374 35.94-3.555 5.29-.035 23.164-.456 35.723 3.39 4.836 1.48 7.697 2.766 11.277 4.876 9.76 5.77 19.73 16.25 23.71 24.03 7.04 13.76 7.04 27.1 6.2 43.91-.15 2.92-2.08 14.5-2.08 14.95-.23-.26-.46-.13-.69.38-3.62 7.08-8.92 44.57-10 55.91-1.09 11.34-.87 30-.87 36.29 0 6.28 2.2 21.94 2.92 28.22.4 3.39 1.86 14.76 3.32 24.54.67 4.52 1.73 8.66 2.78 12.85.74 1.9 0 3.79-1.05 5.2-1.05 1.43-5.96 4.68-12.55 8.14-6.58 3.46-14.8 5.27-20.9 6.12-6.1.86-21.66 2.3-36.98 2.3-15.33 0-29.62-1.19-36.98-2.3-7.36-1.1-13.73-2.66-20.9-6.12-7.18-3.46-11.5-6.71-12.55-8.13-1.05-1.42-1.8-3.3-1.05-5.21 1.05-4.19 2.1-8.33 2.78-12.85a972.812 972.812 0 0 0 3.31-24.54c.73-6.28 2.92-21.94 2.92-28.22 0-6.29.22-24.95-.86-36.29-1.09-11.34-6.39-48.83-10-55.91-.24-.53-.48-.65-.72-.36"
+              id="2_path-5"></path>
+          </defs>
+          <g id='teams' transform="translate(-75, -200)">
+            <rect id="homeTeamNameRect" x="115" y="250" width="250" height="40" rx="20" ry="20" style="
+                    fill: black;
+                    stroke: grey;
+                    stroke-width: 0;
+                    stroke-opacity: 0;
+                  " fill-opacity='0.5' />
+            <rect id="awayTeamNameRect" x="585" y="250" width="250" height="40" rx="20" ry="20" style="
+                    fill: black;
+                    stroke: grey;
+                    stroke-width: 0;
+                    stroke-opacity: 0;
+                  " fill-opacity='0.5' />
+            <g transform="translate(130, 235)">
+              <g id = 'leftJersey' transform="scale(0.15)">
+                    <g fill="none" fill-rule="evenodd">
+                      <path id = 'homePlayerBase'
+                        d="M90.53 278.27c-5.63-7.56-6.86-11.2-6.86-17.8 0-6.6.68-21.38 1.71-24.8 0-5.29 1.29-6.69 2.09-10.75.8-4.07 2.3-19.66 2.3-35.2 0-8.01.62-10.8 1.23-19.9.6-9 .82-25.88.63-26.05-.57 1.3-2.4 12.28-4.16 23.26a303.6 303.6 0 01-4.48 22.69c-.41 1.06-1.02 5.4-1.35 6.63l-4.12 20.58c-1.4 6.63-2.83 11.1-4.27 13.45-.41 2.46-.07 3.87-1.49 5.55-.27 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.28-1.24 4.06a6.65 6.65 0 00-3.39 2.82 41.6 41.6 0 01-21.34 4.09c-7.29-.51-12.1-4.13-12.32-6.92a6.17 6.17 0 01-.32-4.05c.53-2.05 4.34-32.94 5.83-47.63.03-.38.5-.81.53-1.19.48-4.6 1.19-10.73 2.13-18.4-.53-1.32.03-4.61 1.68-9.89.35-9.55.53-15.7.53-18.44 0-2.74.47-9.1 1.42-19.05 2.18-17.62 3.62-27.77 4.3-30.42.69-2.66 1.68-11.91 3-27.76 6.64-14.4 13.38-22.36 20.22-23.88 6.41-3.02 9.76-5.84 15.96-7.3 4.07-1.41 9.95-3.33 17.64-5.77 3.75-.93 5.87-1.39 6.35-1.39.71 0 7.25-3.22 7.25-3.22s2-4.23 3.23-6c2.94-2.37 19.28-7.02 34.44-7.02h.48c15.02.1 31.05 4.68 33.95 7.02 1.24 1.77 3.23 6 3.23 6s6.54 3.22 7.25 3.22c.48 0 2.6.46 6.35 1.4a789.95 789.95 0 0117.64 5.75c6.2 1.47 9.55 4.29 15.96 7.3 6.84 1.53 13.59 9.49 20.22 23.89 1.32 15.85 2.32 25.1 3 27.76.69 2.65 2.12 12.8 4.3 30.42.95 9.96 1.42 16.3 1.42 19.05 0 2.74.18 8.89.54 18.44 1.64 5.28 2.2 8.57 1.67 9.9.94 7.66 1.65 13.79 2.13 18.4.04.37.5.8.53 1.18 1.5 14.7 5.6 45.59 6.14 47.64a6.17 6.17 0 01-.32 4.05c-.22 2.79-5.34 6.4-12.63 6.9a41.6 41.6 0 01-21.34-4.08 6.66 6.66 0 00-3.39-2.82c-1.06-.78-.84-1.96-1.23-4.06-1.17-1.15-.77-2.56-1.04-4.43-1.41-1.68-1.07-3.09-1.48-5.55-1.45-2.34-2.88-6.82-4.28-13.45L231.6 197c-.33-1.23-.85-5.57-1.26-6.63-.4-1.06-6.47-42-7.62-44.63-.2.17-1.18 14-.57 23.05.6 9.05 1.22 20.03 1.22 20.93 0 5.69 1.29 16.64 1.29 19.02 0 2.4.83 12.1 1.63 16.18.8 4.06 2.12 5.7 1.58 10.75 1.03 3.42 1.71 18.2 1.71 24.8 0 6.6-1.23 10.24-6.86 17.8-5.63 7.55-12.28 10.16-26.4 15.57s-39.7 4.41-39.7 4.41-25.57 1-39.7-4.4c-14.11-5.42-20.76-8.03-26.39-15.58z"
+                        fill="#03585e"
+                      ></path>
+                      <g>
+                        <path id = 'homePlayerLeftLongSleeve'
+                          d="M225.3 217.23c.29 2.94.6 5.79 1.14 8.11.7 3.03 1.66 5.6 1.46 6.96-3.3 10.94-11.85 15.33-29.16 21.7-4.45 1.65-11.53 2.95-17.73 3.35-9.52.6-19.37.42-23.76.5v.04l-.5-.02-.5.02v-.04c-4.4-.08-14.25.1-23.77-.5-6.2-.4-13.41-1.63-17.72-3.34-17.24-6.83-27.28-10.16-28.98-22.48.18-1.59.91-3.62 1.5-6.19.29-1.28.42-2.75.67-4.27.37-2.29 1.1-12.34 1.23-14.41.14-2.07.48-8.03.48-10.6 5.11 4.57 16.5 12.59 31.1 14.6 13.82 1.9 21.4 3.35 35.98 3.39 14.6-.04 22.17-1.5 36-3.4 14.59-2 25.96-8.95 31.07-13.52.4 3.33.63 7.79.8 10.37.2 2.57.47 7.72.7 9.73z"
+                          fill="#005a61"
+                        ></path>
+                        <path id = 'homePlayerRightLongSleeve'
+                          d="M32.54 244.52c-.35-.8-.85-1.83-.32-3.88s4.5-33.11 5.99-47.8c.04-.39.5-.82.53-1.2.29-2.75.71-6.08 1.16-9.93 2.92 1.92 5.88 3.28 11.29 4.34 2.6.5 9.42 1.07 13.57.74 5.69-.46 9.31-2.4 12.44-2.75 3.9-.44 5.85 0 7.28.16a483.05 483.05 0 00-2.5 11.52l-4.2 21.32c-1.4 6.62-2.83 11.1-4.27 13.44-.41 2.46-.07 3.87-1.49 5.55-.26 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.29-1.24 4.06a6.65 6.65 0 00-3.39 2.82c-2.64 1.3-11.4 5.04-21.33 4.09-9.94-.95-12.4-5.75-12.5-6.91zm248.58 0c.32-1.13.85-2 .32-4.06-.53-2.05-4.68-32.93-6.17-47.63-.04-.38-.5-.8-.53-1.19-.29-2.75-.71-6.08-1.17-9.93-2.91 1.92-5.88 3.28-11.28 4.34a66.11 66.11 0 01-13.57.74c-5.69-.46-9.31-2.4-12.45-2.75-3.89-.44-5.6 0-6.99.19.12.77.49 3.05 1.02 6.06.19 1.05.45 2.13.6 2.84.2.94.49 2.84.52 3.17.19.7 1.61 7.6 4.28 20.74 1.4 6.62 2.82 11.1 4.27 13.44.41 2.46.07 3.87 1.49 5.55.26 1.87-.13 3.28 1.03 4.43.4 2.1.18 3.29 1.23 4.06 1.23.4 2.62 1.49 3.4 2.82 2.64 1.3 11.57 4.81 21.33 4.09 10.17-1.43 12.42-5.27 12.67-6.92z"
+                          fill="#005a61"
+                        ></path>
+                      </g>
+                      <g>
+                        <path id = 'homePlayerLeftSleeve'
+                          d="M39.9 181.38c.37-3.87.74-6.53.98-8.13-.45-1.11-.24-3.88 1.67-9.9.21-6 .49-13.82.49-16.82 0-4.22.72-13.33.98-15.27 4 2.04 10.52 3.6 15.88 4.04 5.37.44 27.31.35 31.7-.55.16 2.25.16 6.2.16 8.4-.38 1.12-.74 2.9-1.4 6.64s-2.91 17.34-3.44 20.6c-.52 3.27-1.8 9.72-2.6 13.48-1-.08-3.03-.6-7.12-.16-3.26.35-9 3.16-15.72 2.88-6.71-.27-14.37-.4-21.58-5.21zm233.66 0c-.36-3.87-.74-6.53-.97-8.13.45-1.11.23-3.88-1.67-9.9-.22-6-.5-13.82-.5-16.82 0-4.22-.71-13.33-.97-15.27-4.01 2.04-10.53 3.6-15.89 4.04-5.36.44-26.09.5-30.47-.4a54.24 54.24 0 00-.48 10.45c.48 1.05.36.67 1.04 4.39.7 3.71 2.76 17.3 3.28 20.56.53 3.26 1.65 9.6 2.26 13.58 1-.08 2.98-.62 7.07-.17 3.26.35 9 3.16 15.72 2.88 6.72-.27 14.37-.4 21.58-5.21z"
+                          fill="#000000"
+                        ></path>
+                        <path id = 'homePlayerRightSleeve'
+                          d="M229.58 260.46c0 6.6-1.36 10.45-6.98 18.01-5.63 7.56-12.45 10.07-26.57 15.49-13.03 5-35.8 4.53-39.26 4.43-3.44.1-26.46.57-39.49-4.43-14.12-5.42-20.89-7.8-26.51-15.36-5.63-7.55-7.1-11.02-7.1-18.14 0-4.1.42-20.24 1.71-24.8 0-.92 0-1.85.16-2.76 1.34 5.46 3 7.56 6.21 10.5 4.15 3.73 12.27 6.92 20.2 10.1 13.66 6.07 32.81 4.39 44.82 5.04 11.57-.65 30.82 1.09 45.76-5.34 8-2.93 15.42-6.49 19.17-10.05 3.22-2.94 4.57-5.12 6.29-9.53.04.64-.06 1.57-.06 2.16 1.09 3.88 1.65 20.5 1.65 24.68z"
+                          fill="#000000"
+                        ></path>
+                      </g>
+                      <g>
+                        <path
+                          d="M194.26 25.97c-14.86-4.2-29.25-4.2-37.62-4.2h-.04 0c-8.37 0-22.76 0-37.62 4.2"
+                          stroke-opacity=".2"
+                          stroke="#010202"
+                        ></path>
+                        <path
+                          d="M90.53 278.27c-5.63-7.56-6.86-11.2-6.86-17.8 0-6.6.68-21.38 1.71-24.8 0-5.29 1.29-6.69 2.09-10.75.8-4.07 2.3-19.66 2.3-35.2 0-8.01.62-10.8 1.23-19.9.6-9 .82-25.88.63-26.05-.57 1.3-2.4 12.28-4.16 23.26a303.6 303.6 0 01-4.48 22.69c-.41 1.06-1.02 5.4-1.35 6.63l-4.12 20.58c-1.4 6.63-2.83 11.1-4.27 13.45-.41 2.46-.07 3.87-1.49 5.55-.27 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.28-1.24 4.06a6.65 6.65 0 00-3.39 2.82 41.6 41.6 0 01-21.34 4.09c-7.29-.51-12.1-4.13-12.32-6.92a6.17 6.17 0 01-.32-4.05c.53-2.05 4.34-32.94 5.83-47.63.03-.38.5-.81.53-1.19.48-4.6 1.19-10.73 2.13-18.4-.53-1.32.03-4.61 1.68-9.89.35-9.55.53-15.7.53-18.44 0-2.74.47-9.1 1.42-19.05 2.18-17.62 3.62-27.77 4.3-30.42.69-2.66 1.68-11.91 3-27.76 6.64-14.4 13.38-22.36 20.22-23.88 6.41-3.02 9.76-5.84 15.96-7.3 4.07-1.41 9.95-3.33 17.64-5.77 3.75-.93 5.87-1.39 6.35-1.39.71 0 7.25-3.22 7.25-3.22s2-4.23 3.23-6c2.94-2.37 19.28-7.02 34.44-7.02h.48c15.02.1 31.05 4.68 33.95 7.02 1.24 1.77 3.23 6 3.23 6s6.54 3.22 7.25 3.22c.48 0 2.6.46 6.35 1.4a789.95 789.95 0 0117.64 5.75c6.2 1.47 9.55 4.29 15.96 7.3 6.84 1.53 13.59 9.49 20.22 23.89 1.32 15.85 2.32 25.1 3 27.76.69 2.65 2.12 12.8 4.3 30.42.95 9.96 1.42 16.3 1.42 19.05 0 2.74.18 8.89.54 18.44 1.64 5.28 2.2 8.57 1.67 9.9.94 7.66 1.65 13.79 2.13 18.4.04.37.5.8.53 1.18 1.5 14.7 5.6 45.59 6.14 47.64a6.17 6.17 0 01-.32 4.05c-.22 2.79-5.34 6.4-12.63 6.9a41.6 41.6 0 01-21.34-4.08 6.66 6.66 0 00-3.39-2.82c-1.06-.78-.84-1.96-1.23-4.06-1.17-1.15-.77-2.56-1.04-4.43-1.41-1.68-1.07-3.09-1.48-5.55-1.45-2.34-2.88-6.82-4.28-13.45L231.6 197c-.33-1.23-.85-5.57-1.26-6.63-.4-1.06-6.47-42-7.62-44.63-.2.17-1.18 14-.57 23.05.6 9.05 1.22 20.03 1.22 20.93 0 5.69 1.29 16.64 1.29 19.02 0 2.4.83 12.1 1.63 16.18.8 4.06 2.12 5.7 1.58 10.75 1.03 3.42 1.71 18.2 1.71 24.8 0 6.6-1.23 10.24-6.86 17.8-5.63 7.55-12.28 10.16-26.4 15.57s-39.7 4.41-39.7 4.41-25.57 1-39.7-4.4c-14.11-5.42-20.76-8.03-26.39-15.58z"
+                          stroke-opacity=".2"
+                          stroke="#000"
+                        ></path>
+                        <path
+                          d="M229.43 261.85a27.8 27.8 0 01-3.37 9.63c-.97 1.8-2.2 3.69-3.7 5.72-5.64 7.55-11.92 10.26-26.04 15.67-14.12 5.42-39.7 4.41-39.7 4.41s-25.59 1.06-39.66-4.4c-14.08-5.47-20.12-7.77-25.75-15.33-4.26-5.72-6.7-10.1-7.28-14.94m159.39-19.32c1.68.3 3.74 1.9 4.51 3.22 2.65 1.3 9.77 4.65 20.67 3.85 7.02-.5 11.75-4.03 11.75-6.04.37-.89.66-1.74.87-2.57m-211.17 1.53a7.75 7.75 0 00-4.52 3.23c-2.64 1.29-9.76 4.64-20.67 3.85-7.01-.52-11.53-3.76-11.53-5.77-.17-1.66-.51-2.64-1.01-2.94"
+                          stroke-opacity=".2"
+                          stroke="#000"
+                        ></path>
+                        <path
+                          d="M91.63 143.77C93.9 111.6 67.73 66 57.59 59.17m165.13 86.57c-1.04-14.8 5.15-32.68 11.81-48.53 7.82-18.6 16.76-34.35 22.23-38.03"
+                          stroke-opacity=".1"
+                          stroke="#000"
+                        ></path>
+                        <image href="./media/long_overlay.62d6c0f6.png" ></image>
+                      </g>
+                    </g>
+              </g>
+            </g>
+            <g transform="translate(770, 235)">
+                  <g id = 'rightJersey' transform="scale(0.15)">
+                    <g fill="none" fill-rule="evenodd">
+                      <path id = 'awayPlayerBase'
+                        d="M90.53 278.27c-5.63-7.56-6.86-11.2-6.86-17.8 0-6.6.68-21.38 1.71-24.8 0-5.29 1.29-6.69 2.09-10.75.8-4.07 2.3-19.66 2.3-35.2 0-8.01.62-10.8 1.23-19.9.6-9 .82-25.88.63-26.05-.57 1.3-2.4 12.28-4.16 23.26a303.6 303.6 0 01-4.48 22.69c-.41 1.06-1.02 5.4-1.35 6.63l-4.12 20.58c-1.4 6.63-2.83 11.1-4.27 13.45-.41 2.46-.07 3.87-1.49 5.55-.27 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.28-1.24 4.06a6.65 6.65 0 00-3.39 2.82 41.6 41.6 0 01-21.34 4.09c-7.29-.51-12.1-4.13-12.32-6.92a6.17 6.17 0 01-.32-4.05c.53-2.05 4.34-32.94 5.83-47.63.03-.38.5-.81.53-1.19.48-4.6 1.19-10.73 2.13-18.4-.53-1.32.03-4.61 1.68-9.89.35-9.55.53-15.7.53-18.44 0-2.74.47-9.1 1.42-19.05 2.18-17.62 3.62-27.77 4.3-30.42.69-2.66 1.68-11.91 3-27.76 6.64-14.4 13.38-22.36 20.22-23.88 6.41-3.02 9.76-5.84 15.96-7.3 4.07-1.41 9.95-3.33 17.64-5.77 3.75-.93 5.87-1.39 6.35-1.39.71 0 7.25-3.22 7.25-3.22s2-4.23 3.23-6c2.94-2.37 19.28-7.02 34.44-7.02h.48c15.02.1 31.05 4.68 33.95 7.02 1.24 1.77 3.23 6 3.23 6s6.54 3.22 7.25 3.22c.48 0 2.6.46 6.35 1.4a789.95 789.95 0 0117.64 5.75c6.2 1.47 9.55 4.29 15.96 7.3 6.84 1.53 13.59 9.49 20.22 23.89 1.32 15.85 2.32 25.1 3 27.76.69 2.65 2.12 12.8 4.3 30.42.95 9.96 1.42 16.3 1.42 19.05 0 2.74.18 8.89.54 18.44 1.64 5.28 2.2 8.57 1.67 9.9.94 7.66 1.65 13.79 2.13 18.4.04.37.5.8.53 1.18 1.5 14.7 5.6 45.59 6.14 47.64a6.17 6.17 0 01-.32 4.05c-.22 2.79-5.34 6.4-12.63 6.9a41.6 41.6 0 01-21.34-4.08 6.66 6.66 0 00-3.39-2.82c-1.06-.78-.84-1.96-1.23-4.06-1.17-1.15-.77-2.56-1.04-4.43-1.41-1.68-1.07-3.09-1.48-5.55-1.45-2.34-2.88-6.82-4.28-13.45L231.6 197c-.33-1.23-.85-5.57-1.26-6.63-.4-1.06-6.47-42-7.62-44.63-.2.17-1.18 14-.57 23.05.6 9.05 1.22 20.03 1.22 20.93 0 5.69 1.29 16.64 1.29 19.02 0 2.4.83 12.1 1.63 16.18.8 4.06 2.12 5.7 1.58 10.75 1.03 3.42 1.71 18.2 1.71 24.8 0 6.6-1.23 10.24-6.86 17.8-5.63 7.55-12.28 10.16-26.4 15.57s-39.7 4.41-39.7 4.41-25.57 1-39.7-4.4c-14.11-5.42-20.76-8.03-26.39-15.58z"
+                        fill="#03585e"
+                      ></path>
+                      <g>
+                        <path  id = 'awayPlayerLeftLongSleeve'
+                          d="M225.3 217.23c.29 2.94.6 5.79 1.14 8.11.7 3.03 1.66 5.6 1.46 6.96-3.3 10.94-11.85 15.33-29.16 21.7-4.45 1.65-11.53 2.95-17.73 3.35-9.52.6-19.37.42-23.76.5v.04l-.5-.02-.5.02v-.04c-4.4-.08-14.25.1-23.77-.5-6.2-.4-13.41-1.63-17.72-3.34-17.24-6.83-27.28-10.16-28.98-22.48.18-1.59.91-3.62 1.5-6.19.29-1.28.42-2.75.67-4.27.37-2.29 1.1-12.34 1.23-14.41.14-2.07.48-8.03.48-10.6 5.11 4.57 16.5 12.59 31.1 14.6 13.82 1.9 21.4 3.35 35.98 3.39 14.6-.04 22.17-1.5 36-3.4 14.59-2 25.96-8.95 31.07-13.52.4 3.33.63 7.79.8 10.37.2 2.57.47 7.72.7 9.73z"
+                          fill="#005a61"
+                        ></path>
+                        <path id = 'awayPlayerRightLongSleeve'
+                          d="M32.54 244.52c-.35-.8-.85-1.83-.32-3.88s4.5-33.11 5.99-47.8c.04-.39.5-.82.53-1.2.29-2.75.71-6.08 1.16-9.93 2.92 1.92 5.88 3.28 11.29 4.34 2.6.5 9.42 1.07 13.57.74 5.69-.46 9.31-2.4 12.44-2.75 3.9-.44 5.85 0 7.28.16a483.05 483.05 0 00-2.5 11.52l-4.2 21.32c-1.4 6.62-2.83 11.1-4.27 13.44-.41 2.46-.07 3.87-1.49 5.55-.26 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.29-1.24 4.06a6.65 6.65 0 00-3.39 2.82c-2.64 1.3-11.4 5.04-21.33 4.09-9.94-.95-12.4-5.75-12.5-6.91zm248.58 0c.32-1.13.85-2 .32-4.06-.53-2.05-4.68-32.93-6.17-47.63-.04-.38-.5-.8-.53-1.19-.29-2.75-.71-6.08-1.17-9.93-2.91 1.92-5.88 3.28-11.28 4.34a66.11 66.11 0 01-13.57.74c-5.69-.46-9.31-2.4-12.45-2.75-3.89-.44-5.6 0-6.99.19.12.77.49 3.05 1.02 6.06.19 1.05.45 2.13.6 2.84.2.94.49 2.84.52 3.17.19.7 1.61 7.6 4.28 20.74 1.4 6.62 2.82 11.1 4.27 13.44.41 2.46.07 3.87 1.49 5.55.26 1.87-.13 3.28 1.03 4.43.4 2.1.18 3.29 1.23 4.06 1.23.4 2.62 1.49 3.4 2.82 2.64 1.3 11.57 4.81 21.33 4.09 10.17-1.43 12.42-5.27 12.67-6.92z"
+                          fill="#005a61"
+                        ></path>
+                      </g>
+                      <g>
+                        <path id="awayPlayerLeftSleeve"
+                          d="M39.9 181.38c.37-3.87.74-6.53.98-8.13-.45-1.11-.24-3.88 1.67-9.9.21-6 .49-13.82.49-16.82 0-4.22.72-13.33.98-15.27 4 2.04 10.52 3.6 15.88 4.04 5.37.44 27.31.35 31.7-.55.16 2.25.16 6.2.16 8.4-.38 1.12-.74 2.9-1.4 6.64s-2.91 17.34-3.44 20.6c-.52 3.27-1.8 9.72-2.6 13.48-1-.08-3.03-.6-7.12-.16-3.26.35-9 3.16-15.72 2.88-6.71-.27-14.37-.4-21.58-5.21zm233.66 0c-.36-3.87-.74-6.53-.97-8.13.45-1.11.23-3.88-1.67-9.9-.22-6-.5-13.82-.5-16.82 0-4.22-.71-13.33-.97-15.27-4.01 2.04-10.53 3.6-15.89 4.04-5.36.44-26.09.5-30.47-.4a54.24 54.24 0 00-.48 10.45c.48 1.05.36.67 1.04 4.39.7 3.71 2.76 17.3 3.28 20.56.53 3.26 1.65 9.6 2.26 13.58 1-.08 2.98-.62 7.07-.17 3.26.35 9 3.16 15.72 2.88 6.72-.27 14.37-.4 21.58-5.21z"
+                          fill="#000000"
+                        ></path>
+                        <path id="awayPlayerRightSleeve"
+                          d="M229.58 260.46c0 6.6-1.36 10.45-6.98 18.01-5.63 7.56-12.45 10.07-26.57 15.49-13.03 5-35.8 4.53-39.26 4.43-3.44.1-26.46.57-39.49-4.43-14.12-5.42-20.89-7.8-26.51-15.36-5.63-7.55-7.1-11.02-7.1-18.14 0-4.1.42-20.24 1.71-24.8 0-.92 0-1.85.16-2.76 1.34 5.46 3 7.56 6.21 10.5 4.15 3.73 12.27 6.92 20.2 10.1 13.66 6.07 32.81 4.39 44.82 5.04 11.57-.65 30.82 1.09 45.76-5.34 8-2.93 15.42-6.49 19.17-10.05 3.22-2.94 4.57-5.12 6.29-9.53.04.64-.06 1.57-.06 2.16 1.09 3.88 1.65 20.5 1.65 24.68z"
+                          fill="#000000"
+                        ></path>
+                      </g>
+                      <g>
+                        <path
+                          d="M194.26 25.97c-14.86-4.2-29.25-4.2-37.62-4.2h-.04 0c-8.37 0-22.76 0-37.62 4.2"
+                          stroke-opacity=".2"
+                          stroke="#010202"
+                        ></path>
+                        <path
+                          d="M90.53 278.27c-5.63-7.56-6.86-11.2-6.86-17.8 0-6.6.68-21.38 1.71-24.8 0-5.29 1.29-6.69 2.09-10.75.8-4.07 2.3-19.66 2.3-35.2 0-8.01.62-10.8 1.23-19.9.6-9 .82-25.88.63-26.05-.57 1.3-2.4 12.28-4.16 23.26a303.6 303.6 0 01-4.48 22.69c-.41 1.06-1.02 5.4-1.35 6.63l-4.12 20.58c-1.4 6.63-2.83 11.1-4.27 13.45-.41 2.46-.07 3.87-1.49 5.55-.27 1.87.13 3.28-1.03 4.43-.4 2.1-.18 3.28-1.24 4.06a6.65 6.65 0 00-3.39 2.82 41.6 41.6 0 01-21.34 4.09c-7.29-.51-12.1-4.13-12.32-6.92a6.17 6.17 0 01-.32-4.05c.53-2.05 4.34-32.94 5.83-47.63.03-.38.5-.81.53-1.19.48-4.6 1.19-10.73 2.13-18.4-.53-1.32.03-4.61 1.68-9.89.35-9.55.53-15.7.53-18.44 0-2.74.47-9.1 1.42-19.05 2.18-17.62 3.62-27.77 4.3-30.42.69-2.66 1.68-11.91 3-27.76 6.64-14.4 13.38-22.36 20.22-23.88 6.41-3.02 9.76-5.84 15.96-7.3 4.07-1.41 9.95-3.33 17.64-5.77 3.75-.93 5.87-1.39 6.35-1.39.71 0 7.25-3.22 7.25-3.22s2-4.23 3.23-6c2.94-2.37 19.28-7.02 34.44-7.02h.48c15.02.1 31.05 4.68 33.95 7.02 1.24 1.77 3.23 6 3.23 6s6.54 3.22 7.25 3.22c.48 0 2.6.46 6.35 1.4a789.95 789.95 0 0117.64 5.75c6.2 1.47 9.55 4.29 15.96 7.3 6.84 1.53 13.59 9.49 20.22 23.89 1.32 15.85 2.32 25.1 3 27.76.69 2.65 2.12 12.8 4.3 30.42.95 9.96 1.42 16.3 1.42 19.05 0 2.74.18 8.89.54 18.44 1.64 5.28 2.2 8.57 1.67 9.9.94 7.66 1.65 13.79 2.13 18.4.04.37.5.8.53 1.18 1.5 14.7 5.6 45.59 6.14 47.64a6.17 6.17 0 01-.32 4.05c-.22 2.79-5.34 6.4-12.63 6.9a41.6 41.6 0 01-21.34-4.08 6.66 6.66 0 00-3.39-2.82c-1.06-.78-.84-1.96-1.23-4.06-1.17-1.15-.77-2.56-1.04-4.43-1.41-1.68-1.07-3.09-1.48-5.55-1.45-2.34-2.88-6.82-4.28-13.45L231.6 197c-.33-1.23-.85-5.57-1.26-6.63-.4-1.06-6.47-42-7.62-44.63-.2.17-1.18 14-.57 23.05.6 9.05 1.22 20.03 1.22 20.93 0 5.69 1.29 16.64 1.29 19.02 0 2.4.83 12.1 1.63 16.18.8 4.06 2.12 5.7 1.58 10.75 1.03 3.42 1.71 18.2 1.71 24.8 0 6.6-1.23 10.24-6.86 17.8-5.63 7.55-12.28 10.16-26.4 15.57s-39.7 4.41-39.7 4.41-25.57 1-39.7-4.4c-14.11-5.42-20.76-8.03-26.39-15.58z"
+                          stroke-opacity=".2"
+                          stroke="#000"
+                        ></path>
+                        <path
+                          d="M229.43 261.85a27.8 27.8 0 01-3.37 9.63c-.97 1.8-2.2 3.69-3.7 5.72-5.64 7.55-11.92 10.26-26.04 15.67-14.12 5.42-39.7 4.41-39.7 4.41s-25.59 1.06-39.66-4.4c-14.08-5.47-20.12-7.77-25.75-15.33-4.26-5.72-6.7-10.1-7.28-14.94m159.39-19.32c1.68.3 3.74 1.9 4.51 3.22 2.65 1.3 9.77 4.65 20.67 3.85 7.02-.5 11.75-4.03 11.75-6.04.37-.89.66-1.74.87-2.57m-211.17 1.53a7.75 7.75 0 00-4.52 3.23c-2.64 1.29-9.76 4.64-20.67 3.85-7.01-.52-11.53-3.76-11.53-5.77-.17-1.66-.51-2.64-1.01-2.94"
+                          stroke-opacity=".2"
+                          stroke="#000"
+                        ></path>
+                        <path
+                          d="M91.63 143.77C93.9 111.6 67.73 66 57.59 59.17m165.13 86.57c-1.04-14.8 5.15-32.68 11.81-48.53 7.82-18.6 16.76-34.35 22.23-38.03"
+                          stroke-opacity=".1"
+                          stroke="#000"
+                        ></path>
+                        <image href="./media/long_overlay.62d6c0f6.png" ></image>
+                      </g>
+                    </g>
+                  </g>
+            </g>
+            <text id="homeTeamName" fill="#fff" font-size="20" font-family="InriaSans" x="180" y="277" fill-opacity="1"
+              text-anchor="start">
+              HOME
+            </text>
+            <text id="awayTeamName" fill="#fff" font-size="20" font-family="InriaSans" x="770" y="277" fill-opacity="1"
+              text-anchor="end">
+              AWAY
+            </text>
+          </g>
+          <g id='score-fade-out' style='opacity: 0;'>
+            <rect x="115" y="425" width="720" height="100" rx="3" ry="3"
+              style="fill:rgb(0, 5, 40); fill-opacity: 0.9;" />
+            <g id="fade_leftJersey" fill="none" fill-rule="evenodd" filter="url(#shadow)" transform="scale(0.15)">
+              <g transform="translate(766, 3000)">
+                <mask id="fade_2_mask-3" fill="#fff">
+                  <use xlink:href="#2_path-2"></use>
+                </mask>
+                <use fill="#000" filter="url(#2_filter-4)" xlink:href="#2_path-2"></use>
+                <use class="sr-jersey3d__base" fill="#3a446c" xlink:href="#2_path-2"></use>
+                <path id="fade_homePlayerBase" stroke-opacity="0.15" stroke="#000" stroke-width="0.58" fill="#f00"
+                  d="M156.15 13.29c8.47 0 16.94-.2 25.42-.58 1.88 0 3.3.93 5.1 2.98.4.44 1.76 2.09 2.02 2.4 2.13 2.46 3.91 3.87 6.36 4.63 2.85.86 4.98 1.7 9.3 3.67 4.99 2.3 36.13 15.55 48.94 20.81a29.63 29.63 0 0 1 16.42 15.93c.39.86.73 1.7 1.1 2.7l.79 2.07c2.08 4.14 3.34 9.63 3.96 16.3.48 5.12.55 9.7.43 16.98a216.2 216.2 0 0 0-.05 4v27.14c0 2.23-.62 2.96-3.3 4.02a61.23 61.23 0 0 1-12.88 2.63c-6.33.7-12.43.82-20.08.65l-2.01-.05a67.8 67.8 0 0 0-1.42-.02c-3.2 0-4.22-.87-5.09-3.38l-.33-.94c-.57-1.47-.57-7.15-.02-17.12a9.18 9.18 0 0 0-.77-2.64c-.12-.18-.11-.18-.3.23-2.97 5.82-8.3 38.36-9.97 55.8-.37 3.88-.61 8.81-.75 14.66-.12 5.58-.15 10.68-.12 18.18v3.43c0 2.77.42 7.49 1.2 14.07.11 1.04.24 2.12.38 3.26.2 1.64 1.18 9.4 1.35 10.86a968.4 968.4 0 0 0 3.3 24.52 112.43 112.43 0 0 0 2.72 12.55l.05.24c.7 1.8.22 3.72-1.08 5.49-1.12 1.52-6.2 4.83-12.65 8.21-5.77 3.04-13.24 5.07-21 6.16-8.51 1.2-24.02 2.3-37.02 2.3-13.76 0-28.36-1-37.02-2.3-8.28-1.25-14.37-2.97-20.99-6.15-6.34-3.06-11.32-6.42-12.65-8.22-1.3-1.77-1.79-3.68-1.1-5.45l.07-.28.28-1.13c1.28-5.1 1.92-8.02 2.43-11.42 1.22-8.2 2.74-19.63 3.3-24.52l1.35-10.86.4-3.26c.76-6.58 1.18-11.3 1.18-14.07v-3.43c.03-7.5.01-12.6-.12-18.18a212.2 212.2 0 0 0-.74-14.65c-1.67-17.45-7-49.99-9.98-55.82-.18-.4-.17-.4-.29-.22-.24.37-.5 1.26-.77 2.56.55 10.05.55 15.73-.02 17.2-.1.25-.1.23-.34.94-.86 2.51-1.87 3.38-5.08 3.38-.33 0-.77 0-1.42.02l-2 .05c-7.67.17-13.76.05-20.1-.65a61.22 61.22 0 0 1-12.88-2.64c-2.67-1.05-3.3-1.78-3.3-4.01v-27.13c0-.9 0-1.17-.05-4.01-.11-7.28-.04-11.86.43-16.97.63-6.68 1.88-12.17 3.96-16.29l.79-2.09c.38-1 .72-1.84 1.1-2.7A29.63 29.63 0 0 1 59.02 47.2a2821.3 2821.3 0 0 0 48.96-20.8 66.13 66.13 0 0 1 5.59-2.35l.1-.04c1.53-.55 1.64-.6 2.48-.92 3.09-.65 5.25-2.19 7.63-4.94.34-.39 1.92-2.31 2.35-2.8 1.6-1.8 2.92-2.64 4.63-2.64 8.47.39 16.94.58 25.4.58z">
+                </path>
+                <g mask="url(#3_mask-3)">
+                  <g transform="translate(79.333 28.022)">
+                    <g id="fade_homeStripes" fill="#00f">
+                      <path
+                        d="M68.22 0H97.7a578.06 578.06 0 0 1 4.04 68.87c0 35.13-2.24 49.64-2.89 92.12-.45 29.42.94 59.14 1.23 89.74.2 20.4 1.9 31.77 5.13 34.11H68.22c.77 8.93 1.16-1.92 1.16-32.53 0-45.92-2.17-45.8-1.74-91.84.44-46.03 1.74-55.75 1.74-90.93 0-23.46-.39-46.63-1.16-69.54z"
+                        transform="translate(23.644 -11.556)"></path>
+                      <path
+                        d="M6.98 0h30.04c-.77 19.02-1.15 42.48-1.15 70.39 0 41.85 1.15 43.28 2.3 84.08.89 31.14-.14 63.96-.3 96.28-.04 7.56-.32 18.92-.85 34.1H.04a417.76 417.76 0 0 0 4.9-34.24c3.43-32.84 1.32-73.48.88-96.58-.82-43.72-2.3-61.6-2.3-83.86C3.51 55.33 4.66 31.94 6.97 0z"
+                        transform="translate(23.644 -11.556)"></path>
+                    </g>
+                  </g>
+                </g>
+                <path id="fade_homePlayerLeftLongSleeve"
+                  d="M116.42 23.25c1.51-.37 2.78-.95 3.88-1.65-.15 0-.3.02-.44.03-.65 0-2.47.63-3.33 1.03-1.91.91-8.68 4.08-13.86 6.36-5.9 2.59-10.24 4.39-9.77 4.2a3080.9 3080.9 0 0 1-33.78 14.24c-13.56 5.57-16.51 16.45-18.16 20.56-5.45 10.84-4.31 29.53-4.31 37.16v27.13c0 2.15.62 2.76 3.11 3.75 12.74 4.34 32.02 3.2 36.3 3.2 4.27 0 4.33-2.03 5.15-4.14.54-1.4.54-7.1 0-17.08.3-1.54.6-2.48.9-2.83.06-.09-1.94-12-2.08-14.96-.84-16.8-.84-30.15 6.2-43.9 3.97-7.8 13.95-18.28 23.7-24.04a46.19 46.19 0 0 1 9.23-4.03c-2.19-2.86-3.43-5.03-2.74-5.03"
+                  fill="#f9ef05"></path>
+                <path id="fade_homePlayerRightLongSleeve"
+                  d="M271.35 68.02c-1.65-4.11-4.6-15-18.17-20.56-8.17-3.36-22.59-9.45-33.77-14.23.47.17-3.87-1.63-9.77-4.22a611.44 611.44 0 0 1-13.86-6.35c-.86-.41-2.68-1.04-3.33-1.04l-.35-.02c.77.48 1.6.9 2.55 1.16 1.19.52.16 2.63-2.07 5.33a46.75 46.75 0 0 1 9.8 4.22c9.75 5.76 19.73 16.24 23.7 24.03 7.04 13.75 7.04 27.1 6.2 43.9-.15 2.97-2.14 14.88-2.07 14.96.3.35.59 1.3.9 2.84-.56 9.97-.56 15.67 0 17.07.81 2.11.87 4.14 5.14 4.14 4.28 0 23.56 1.14 36.3-3.2 2.5-.98 3.11-1.6 3.11-3.74v-27.13c0-7.63 1.13-26.33-4.31-37.16"
+                  fill="#f9ef05"></path>
+                <path id='fade_homePlayerLeftSleeve'
+                  d="M81.48 133.62c0 .8-.26 1.56-.4 1.83-.7 2.07-1.03 3.81-5.1 3.81-4.27 0-23.55 1.14-36.29-3.2-2.5-.99-3.11-1.6-3.11-3.74v-1-1.85c2.15 1.17 4 1.95 5.57 2.34 10.47 2.62 22.06 2.62 30.62 2.62 5.7 0 7.98-.6 8.71-.81z"
+                  fill="#f9ef05" mask="url(#2_mask-3)"></path>
+                <path id='fade_homePlayerRightSleeve'
+                  d="M230.8 133.63c0 .66.2 1.36.4 1.82.71 2 .99 3.8 5.05 3.8 4.27 0 23.56 1.15 36.3-3.19 2.49-.99 3.1-1.6 3.1-3.74v-2.85a24.6 24.6 0 0 1-5.56 2.34c-10.48 2.62-22.06 2.62-30.63 2.62-5.69 0-7.93-.6-8.66-.8"
+                  fill="#f9ef05" mask="url(#2_mask-3)"></path>
+                <use fill="url(#2_linearGradient-1)" xlink:href="#2_path-2"></use>
+              </g>
+            </g>
+            <g id="fade_rightJersey" fill="none" fill-rule="evenodd" filter="url(#shadow)" transform="scale(0.15)">
+              <g transform="translate(5233, 3000)">
+                <mask id="fade_3_mask-3" fill="#fff">
+                  <use xlink:href="#3_path-2"></use>
+                </mask>
+                <use fill="#000" filter="url(#3_filter-4)" xlink:href="#3_path-2"></use>
+                <use class="sr-jersey3d__base" fill="#000000" xlink:href="#3_path-2"></use>
+                <path id="fade_awayPlayerBase" stroke-opacity="0.15" stroke="#000" stroke-width="0.58" fill="#000"
+                  d="M156.15 13.29c8.47 0 16.94-.2 25.42-.58 1.88 0 3.3.93 5.1 2.98.4.44 1.76 2.09 2.02 2.4 2.13 2.46 3.91 3.87 6.36 4.63 2.85.86 4.98 1.7 9.3 3.67 4.99 2.3 36.13 15.55 48.94 20.81a29.63 29.63 0 0 1 16.42 15.93c.39.86.73 1.7 1.1 2.7l.79 2.07c2.08 4.14 3.34 9.63 3.96 16.3.48 5.12.55 9.7.43 16.98a216.2 216.2 0 0 0-.05 4v27.14c0 2.23-.62 2.96-3.3 4.02a61.23 61.23 0 0 1-12.88 2.63c-6.33.7-12.43.82-20.08.65l-2.01-.05a67.8 67.8 0 0 0-1.42-.02c-3.2 0-4.22-.87-5.09-3.38l-.33-.94c-.57-1.47-.57-7.15-.02-17.12a9.18 9.18 0 0 0-.77-2.64c-.12-.18-.11-.18-.3.23-2.97 5.82-8.3 38.36-9.97 55.8-.37 3.88-.61 8.81-.75 14.66-.12 5.58-.15 10.68-.12 18.18v3.43c0 2.77.42 7.49 1.2 14.07.11 1.04.24 2.12.38 3.26.2 1.64 1.18 9.4 1.35 10.86a968.4 968.4 0 0 0 3.3 24.52 112.43 112.43 0 0 0 2.72 12.55l.05.24c.7 1.8.22 3.72-1.08 5.49-1.12 1.52-6.2 4.83-12.65 8.21-5.77 3.04-13.24 5.07-21 6.16-8.51 1.2-24.02 2.3-37.02 2.3-13.76 0-28.36-1-37.02-2.3-8.28-1.25-14.37-2.97-20.99-6.15-6.34-3.06-11.32-6.42-12.65-8.22-1.3-1.77-1.79-3.68-1.1-5.45l.07-.28.28-1.13c1.28-5.1 1.92-8.02 2.43-11.42 1.22-8.2 2.74-19.63 3.3-24.52l1.35-10.86.4-3.26c.76-6.58 1.18-11.3 1.18-14.07v-3.43c.03-7.5.01-12.6-.12-18.18a212.2 212.2 0 0 0-.74-14.65c-1.67-17.45-7-49.99-9.98-55.82-.18-.4-.17-.4-.29-.22-.24.37-.5 1.26-.77 2.56.55 10.05.55 15.73-.02 17.2-.1.25-.1.23-.34.94-.86 2.51-1.87 3.38-5.08 3.38-.33 0-.77 0-1.42.02l-2 .05c-7.67.17-13.76.05-20.1-.65a61.22 61.22 0 0 1-12.88-2.64c-2.67-1.05-3.3-1.78-3.3-4.01v-27.13c0-.9 0-1.17-.05-4.01-.11-7.28-.04-11.86.43-16.97.63-6.68 1.88-12.17 3.96-16.29l.79-2.09c.38-1 .72-1.84 1.1-2.7A29.63 29.63 0 0 1 59.02 47.2a2821.3 2821.3 0 0 0 48.96-20.8 66.13 66.13 0 0 1 5.59-2.35l.1-.04c1.53-.55 1.64-.6 2.48-.92 3.09-.65 5.25-2.19 7.63-4.94.34-.39 1.92-2.31 2.35-2.8 1.6-1.8 2.92-2.64 4.63-2.64 8.47.39 16.94.58 25.4.58z">
+                </path>
+                <g mask="url(#3_mask-3)">
+                  <g transform="translate(79.333 28.022)">
+                    <g id="fade_awayStripes" fill="#00f">
+                      <path
+                        d="M68.22 0H97.7a578.06 578.06 0 0 1 4.04 68.87c0 35.13-2.24 49.64-2.89 92.12-.45 29.42.94 59.14 1.23 89.74.2 20.4 1.9 31.77 5.13 34.11H68.22c.77 8.93 1.16-1.92 1.16-32.53 0-45.92-2.17-45.8-1.74-91.84.44-46.03 1.74-55.75 1.74-90.93 0-23.46-.39-46.63-1.16-69.54z"
+                        transform="translate(23.644 -11.556)"></path>
+                      <path
+                        d="M6.98 0h30.04c-.77 19.02-1.15 42.48-1.15 70.39 0 41.85 1.15 43.28 2.3 84.08.89 31.14-.14 63.96-.3 96.28-.04 7.56-.32 18.92-.85 34.1H.04a417.76 417.76 0 0 0 4.9-34.24c3.43-32.84 1.32-73.48.88-96.58-.82-43.72-2.3-61.6-2.3-83.86C3.51 55.33 4.66 31.94 6.97 0z"
+                        transform="translate(23.644 -11.556)"></path>
+                    </g>
+                  </g>
+                </g>
+                <path id="fade_awayPlayerLeftLongSleeve"
+                  d="M116.42 23.25c1.51-.37 2.78-.95 3.88-1.65-.15 0-.3.02-.44.03-.65 0-2.47.63-3.33 1.03-1.91.91-8.68 4.08-13.86 6.36-5.9 2.59-10.24 4.39-9.77 4.2a3080.9 3080.9 0 0 1-33.78 14.24c-13.56 5.57-16.51 16.45-18.16 20.56-5.45 10.84-4.31 29.53-4.31 37.16v27.13c0 2.15.62 2.76 3.11 3.75 12.74 4.34 32.02 3.2 36.3 3.2 4.27 0 4.33-2.03 5.15-4.14.54-1.4.54-7.1 0-17.08.3-1.54.6-2.48.9-2.83.06-.09-1.94-12-2.08-14.96-.84-16.8-.84-30.15 6.2-43.9 3.97-7.8 13.95-18.28 23.7-24.04a46.19 46.19 0 0 1 9.23-4.03c-2.19-2.86-3.43-5.03-2.74-5.03"
+                  fill="#000000"></path>
+                <path id="fade_awayPlayerRightLongSleeve"
+                  d="M271.35 68.02c-1.65-4.11-4.6-15-18.17-20.56-8.17-3.36-22.59-9.45-33.77-14.23.47.17-3.87-1.63-9.77-4.22a611.44 611.44 0 0 1-13.86-6.35c-.86-.41-2.68-1.04-3.33-1.04l-.35-.02c.77.48 1.6.9 2.55 1.16 1.19.52.16 2.63-2.07 5.33a46.75 46.75 0 0 1 9.8 4.22c9.75 5.76 19.73 16.24 23.7 24.03 7.04 13.75 7.04 27.1 6.2 43.9-.15 2.97-2.14 14.88-2.07 14.96.3.35.59 1.3.9 2.84-.56 9.97-.56 15.67 0 17.07.81 2.11.87 4.14 5.14 4.14 4.28 0 23.56 1.14 36.3-3.2 2.5-.98 3.11-1.6 3.11-3.74v-27.13c0-7.63 1.13-26.33-4.31-37.16"
+                  fill="#000000"></path>
+                <path id='fade_awayPlayerLeftSleeve'
+                  d="M81.48 133.62c0 .8-.26 1.56-.4 1.83-.7 2.07-1.03 3.81-5.1 3.81-4.27 0-23.55 1.14-36.29-3.2-2.5-.99-3.11-1.6-3.11-3.74v-1-1.85c2.15 1.17 4 1.95 5.57 2.34 10.47 2.62 22.06 2.62 30.62 2.62 5.7 0 7.98-.6 8.71-.81z"
+                  fill="#00f"></path>
+                <path id='fade_awayPlayerRightSleeve'
+                  d="M230.8 133.63c0 .66.2 1.36.4 1.82.71 2 .99 3.8 5.05 3.8 4.27 0 23.56 1.15 36.3-3.19 2.49-.99 3.1-1.6 3.1-3.74v-2.85a24.6 24.6 0 0 1-5.56 2.34c-10.48 2.62-22.06 2.62-30.63 2.62-5.69 0-7.93-.6-8.66-.8"
+                  fill="#00f"></path>
+                <use fill="url(#3_linearGradient-1)" xlink:href="#3_path-2"></use>
+              </g>
+            </g>
+            <text id="fade_homeTeamName" fill="#fff" font-size="20" font-family="InriaSans" x="165" y="482"
+              fill-opacity="1" text-anchor="start">
+              HOME
+            </text>
+            <text id="fade_awayTeamName" fill="#fff" font-size="20" font-family="InriaSans" x="785" y="482"
+              fill-opacity="1" text-anchor="end">
+              AWAY
+            </text>
+            <text id="fade_score" fill="#fff" font-size="50" font-family="InriaSans" x="475" y="490" fill-opacity="1"
+              text-anchor="middle">
+              0 - 0
+            </text>
+          </g>
+          <g transform='translate(600, 15)'>
+            <a id='link' href="../hockey-2d/index.html">
+              <rect x="0" y="0" width="50" height="24" style="fill:white; fill-opacity: 0.3" rx='12' ry='12' />
+              <text fill="#fff" font-size="18" font-family="InriaSans" x="25" y="12" fill='#fff' fill-opacity="1"
+                text-anchor="middle" alignment-baseline="middle">
+                2D
+              </text>
+            </a>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
 </body>
 </html>
-```
